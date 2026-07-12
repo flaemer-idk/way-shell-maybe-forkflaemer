@@ -1,0 +1,70 @@
+{ lib
+, stdenv
+, fetchFromGitHub
+, pkg-config
+, gnumake
+, gcc
+, wayland-scanner
+, glib
+, wrapGAppsHook4
+, libadwaita
+, gtk4-layer-shell
+, upower
+, wireplumber
+, json-glib
+, networkmanager
+, libpulseaudio
+, wayland
+, wayland-protocols
+}:
+
+stdenv.mkDerivation rec {
+  pname = "way-shell";
+  version = "0.0.10"; # Версия из way-shell.spec
+
+  # Если вы собираете из своего форка на GitHub:
+  src = fetchFromGitHub {
+    owner = "ВАШ_GITHUB_ЛОГИН";
+    repo = "way-shell";
+    rev = "v${version}"; # Или хэш коммита/ветки
+    hash = lib.fakeHash; # Nix сам подскажет правильный SHA256 при первой сборке
+  };
+
+  # Если вы хотите собирать пакет из локальной папки на диске:
+  # src = ./путь/к/папке/с/вашим/кодом;
+
+  nativeBuildInputs = [
+    pkg-config
+    gnumake
+    gcc
+    wayland-scanner
+    glib
+    wrapGAppsHook4
+  ];
+
+  buildInputs = [
+    libadwaita
+    gtk4-layer-shell
+    upower
+    wireplumber
+    json-glib
+    networkmanager
+    libpulseaudio
+    wayland
+    wayland-protocols
+  ];
+
+  # Makefile проекта использует DESTDIR и PREFIX для инсталляции.
+  # Сбрасываем DESTDIR и приравниваем PREFIX к системному префиксу Nix-а.
+  makeFlags = [
+    "DESTDIR="
+    "PREFIX=$(out)"
+  ];
+
+  meta = with lib; {
+    description = "GNOME-inspired desktop shell for Wayland compositors (with Niri support)";
+    homepage = "https://github.com/ldelossa/way-shell";
+    license = licenses.gpl2Only; # Согласно файлу LICENSE в корне проекта
+    platforms = platforms.linux;
+  };
+}

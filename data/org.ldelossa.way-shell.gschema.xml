@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<schemalist>
+
+    <!--top level keys-->
+    <schema path="/org/ldelossa/way-shell/" id="org.ldelossa.way-shell">
+    </schema>
+
+    <!--system related settings-->
+    <schema path="/org/ldelossa/way-shell/system/" id="org.ldelossa.way-shell.system">
+        <key name="suspend-method" type="s">
+            <default>"suspend"</default>
+            <summary>The suspend method used when suspend is invoked from Quick Settings</summary>
+            <description>
+            The method used to suspend the system. Options are:
+            suspend, hybrid_sleep, suspend_then_hibernate, hibernate,
+            If the provided suspend method is not available way-shell will walk
+            the list above and pick the first supported suspention method.
+            </description>
+        </key>
+        <key name="backlight-directory" type="s">
+            <default>"intel_backlight"</default>
+            <summary>The relative directory of your backlight device file</summary>
+            <description>
+            The directory located under /sys/class/backlight/ which contains
+            the backlight device files such as "brightness" and "max_brightness"
+            The default is 'intel_backlight' but this may need to change depending
+            on your machine.
+            </description>
+        </key>
+        <key name="keyboard-backlight-directory" type="s">
+            <default>""</default>
+            <summary>The relative directory of your backlight device file</summary>
+            <description>
+            The directory located typically under /sys/class/leds/ which contains
+            the keyboard backlight device files such as "brightness" and "max_brightness"
+			There is no default since this tends to be specific to the manufacturer.
+			For instance Lenovo Thinkpads usually have they keyboard backlight directory
+			idenified as '/sys/class/leds/tpacpi::kbd_backlight'
+            </description>
+        </key>
+        <key name="idle-inhibitor" type="b">
+            <default>false</default>
+            <summary>Enable the idle inhibitor</summary>
+            <description>
+            Enable or disable the idle inhibitor. When enabled the system will not
+            suspend or hibernate when the screen is locked.
+            The inhibitor lock is created via LoginD and way-shell expects the
+            idle daemon to integrate with this service as well to understand
+            ide locks.
+            </description>
+        </key>
+        <key name="light-theme" type="b">
+            <default>false</default>
+            <summary>Enable the light theme</summary>
+            <description>
+			When enabled way-shell will switch to the its light them.
+			While disabled the dark theme is shown.
+			When the theme is changed way-shell will execute a bash script at
+			~/.config/way-shell/on_theme_change.sh will be invoked with the
+			argument "dark" or "light" depending on which theme was picked.
+            </description>
+        </key>
+    </schema>
+
+    <!--window manager related settings-->
+    <schema path="/org/ldelossa/way-shell/window-manager/" id="org.ldelossa.way-shell.window-manager">
+        <key name="backend" type="s">
+            <default>"niri"</default>
+            <summary>The window manager backend to use (default: sway)</summary>
+            <description>
+			Instructs Way-Shell which window manager to use.
+			Currently supported options are "sway".
+
+			Changing this setting requires a restart to take effect.
+            </description>
+        </key>
+        <key name="sort-workspaces-alphabetical" type="b">
+            <default>true</default>
+            <summary>Sort workpaces alphabetically</summary>
+            <description>
+            Enabling this option will sort workspaces alphabetically.
+            If its disabled workspaces are not sorted and are displayed in creation order.
+            </description>
+        </key>
+        <key name="desktop-wallpaper" type="s">
+            <default>"/no/file"</default>
+            <summary>A fully-qualified filesystem path desktop wallpaper image</summary>
+            <description>
+            Supplies an image to use in various aspects of Way-Shell where a
+            desktop wallpaper image is desired.
+            </description>
+        </key>
+        <key name="ignored-toplevels-app-ids" type="s">
+            <default>""</default>
+            <summary>A colon separated list of app-ids to ignore.</summary>
+            <description>
+            Way-Shell will ignore any Wayland toplevel with an app-id field
+            matching any string in this list.
+            Way-Shell will not be informed about the creation or closing of
+            these toplevels.
+            The app-id should be the string provided by
+            the zwlr_foreign_toplevel_handle_v1 Wayland object.
+
+            Request restart to take effect.
+            </description>
+        </key>
+        <key name="ignored-toplevels-titles" type="s">
+            <default>"scratchpad"</default>
+            <summary>A colon separated list of title to ignore.</summary>
+            <description>
+            Way-Shell will ignore any Wayland toplevel with a title field
+            matching any string in this list.
+            Way-Shell will not be informed about the creation or closing of
+            these toplevels.
+            The title should be the string provided by the
+            zwlr_foreign_toplevel_handle_v1 Wayland object.
+
+            By default any window with a permanent title of "scratchpad" is
+            ignored.
+
+            Request restart to take effect.
+            </description>
+        </key>
+        <key name="focus-urgent-workspace" type="b">
+            <default>false</default>
+            <summary>Whether to focus workspaces that are set to urgent</summary>
+            <description>
+            Way-Shell will automatically focus workspaces which become urgent
+            when this configuration is set to true.
+
+            Workspaces are marked urgent when an application requests to be
+            focused. This typically occurs when the app first opens and when
+            the app requests focus.
+
+            In practice, enabling this setting provides a more traditional feel
+            when launching apps or clicking notifications, as Way-Shell informs
+            the window manager to focus the app generating these events.
+            </description>
+        </key>
+    </schema>
+
+    <!--notification related settings-->
+    <schema path="/org/ldelossa/way-shell/notifications/" id="org.ldelossa.way-shell.notifications">
+        <key name="do-not-disturb" type="b">
+            <default>false</default>
+            <summary>DoNotDisturb</summary>
+            <description>Enable or disable on-screen notifications.</description>
+        </key>
+    </schema>
+
+    <!--panel related settings-->
+    <schema path="/org/ldelossa/way-shell/panel/" id="org.ldelossa.way-shell.panel">
+        <key name="clock-format" type="s">
+            <default>"%b %d %I:%M"</default>
+            <summary>The format to display the current time in on the panel.</summary>
+            <description>
+            This is passed as the `format` argument to g_date_time_format when rendering the clock
+            in the panel.
+            Note that the clock only ticks every minute, so precise specifiers such as %S are
+            useless.
+            Way-Shell must be restarted for changes to take effect.
+            </description>
+        </key>
+        <key name="enable-tray-icons" type="b">
+            <default>true</default>
+            <summary>Whether tray icons and their menus should be displayed</summary>
+            <description>
+			Way-Shell can display tray icons for applications which present them.
+
+			This is an experimental feature which may cause some issues.
+			Therefore, if issues are encountered you can disable them with this
+			flag.
+
+            Way-Shell must be restarted for changes to take effect.
+            </description>
+        </key>
+    </schema>
+
+</schemalist>
