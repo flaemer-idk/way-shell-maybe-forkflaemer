@@ -6,3 +6,20 @@ way-sh/way-sh
 gresources.c
 gresources.h
 /.cache/
+# Игнорируем временный кэш компиляции и сборки
+/build/
+/.cache/
+**.*o
+
+# Игнорируем сгенерированные файлы ресурсов и утилиты
+gresources.c
+gresources.h
+compile_commands.json
+.gdb_history
+
+# Игнорируем старые скомпилированные бинарники в корне (если они есть)
+way-shell
+way-sh
+repomix-output.xml
+RoadMap.md
+.vscode

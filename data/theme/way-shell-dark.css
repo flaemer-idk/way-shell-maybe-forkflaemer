@@ -6,8 +6,8 @@
 @define-color highlight #3584e4;
 @define-color scale-trough-highlight #3584e4;
 @define-color osd-icon-image #ffffff;
-@define-color underlay-background rgba(0, 0, 0, 0.1);
-@define-color underlay-background-heavy rgba(0, 0, 0, 0.5);
+@define-color underlay-background rgba(0, 0, 0, 0.0);
+@define-color underlay-background-heavy rgba(0, 0, 0, 0.0);
 @define-color box-shadow rgba(0, 0, 0, 0.2);
 @define-color panel-background #000000;
 @define-color panel-button-color #ffffff;
@@ -43,7 +43,7 @@
  * exposes this 'row' node.
  */
 row:hover {
-	background: @transparent
+	background: @transparent;
 }
 
 /*
@@ -79,9 +79,13 @@ row:hover {
  * Underlay
  */
 .underlay {
-  background-color: @underlay-background;
+  background-color: rgba(0, 0, 0, 0.0); /* Полностью прозрачно, но перехватывает клики */
 }
-
+.underlay button {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
 .underlay:hover,
 .underlay:active {
   background-color: @underlay-background;
@@ -434,7 +438,6 @@ label.day-number.today:focus {
 #notifications-osd .notification-widget-icon,
 #notifications-list .notification-widget-icon {
   border-radius: 50%;
-  overflow: hidden;
   padding: 8px;
 }
 
@@ -605,13 +608,13 @@ label.day-number.today:focus {
   padding: 5px 10px;
 }
 
-#quick-settings #quick-settings-header.#battery-menu scale slider {
-	background: @transparent
+#quick-settings #quick-settings-header #battery-menu scale slider {
+	background: @transparent;
 }
-#quick-settings #quick-settings-header.#battery-menu scale highlight {
+#quick-settings #quick-settings-header #battery-menu scale highlight {
 	background: shade(@success, 2);
 }
-#quick-settings #quick-settings-header.#battery-menu label {
+#quick-settings #quick-settings-header #battery-menu label {
 	padding: 0px;
 	margin-left: 12px;
 	margin-right: 12px;
@@ -938,7 +941,7 @@ label.day-number.today:focus {
 }
 
 #quick-settings.focused .quick-settings-grid-button-toggle.off:active {
-  background-color: shade(@panel-button-active, .5)
+  background-color: shade(@panel-button-active, .5);
 }
 
 
@@ -990,7 +993,7 @@ label.day-number.today:focus {
  * Dialog Overlay
  */
 #dialog-overlay {
-    background: @underlay-background-heavy
+    background: @underlay-background-heavy;
 }
 
 #dialog-overlay #dialog-overlay-container {
@@ -1118,7 +1121,11 @@ label.day-number.today:focus {
    border-bottom-left-radius: 20px;
    border-bottom-right-radius: 20px;
 }
-
+.webcam-active {
+    color: @success;
+    margin-left: 8px;
+    margin-right: 8px;
+}
 #switcher row {
    border-top-left-radius: 20px;
    border-top-right-radius: 20px;
