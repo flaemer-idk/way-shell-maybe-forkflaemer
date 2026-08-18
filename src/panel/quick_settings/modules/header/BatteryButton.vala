@@ -1,3 +1,4 @@
+// Путь: src/panel/quick_settings/modules/header/BatteryButton.vala
 using Gtk;
 using WayShell.Services;
 
@@ -10,6 +11,7 @@ namespace WayShell.QS {
 
         public BatteryButton() {
             this.add_css_class("battery-button");
+            this.visible = false;
 
             box = new Box(Orientation.HORIZONTAL, 6);
             icon = new Image();
@@ -26,17 +28,17 @@ namespace WayShell.QS {
                     update_status();
                     power_dev.notify["percentage"].connect(update_status);
                     power_dev.notify["state"].connect(update_status);
+                    power_dev.notify["present"].connect(update_status);
                 }
             }
         }
 
         private void update_status() {
-            if (power_dev == null) return;
-            if (!power_dev.present) {
-                label.set_text("∞%");
-                icon.set_from_icon_name("ac-adapter-symbolic");
+            if (power_dev == null || !power_dev.present) {
+                this.visible = false;
                 return;
             }
+            this.visible = true;
             double percent = power_dev.percentage;
             label.set_text("%.0f%%".printf(percent));
             icon.set_from_icon_name(UPowerService.device_map_icon_name(power_dev));

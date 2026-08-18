@@ -1,15 +1,16 @@
+// Путь: src/services/NotificationsService.vala
 using GLib;
 
 namespace WayShell.Services {
     public class Notification : GLib.Object {
-        public uint32 id;
-        public string app_name;
-        public string app_icon;
-        public string summary;
-        public string body;
-        public string[] actions;
-        public uint8 urgency;
-        public DateTime created_on;
+        public uint32 id { get; set; }
+        public string app_name { get; set; }
+        public string app_icon { get; set; }
+        public string summary { get; set; }
+        public string body { get; set; }
+        public string[] actions { get; set; }
+        public uint8 urgency { get; set; }
+        public DateTime created_on { get; set; }
 
         public Notification(uint32 id, string app_name, string app_icon, string summary, string body, string[] actions, uint8 urgency) {
             this.id = id;
@@ -82,22 +83,44 @@ namespace WayShell.Services {
             try {
                 var conn = Bus.get_sync(BusType.SESSION);
                 registration_id = conn.register_object("/org/freedesktop/Notifications", server);
-                // Ровно 5 аргументов: conn, имя, флаги, null (acquired handler), лямбда (lost handler)
-                Bus.own_name_on_connection(conn, "org.freedesktop.Notifications", BusNameOwnerFlags.NONE, null, (c, n) => {
-                    warning("NotificationsService: Name org.freedesktop.Notifications was lost");
-                });
+                Bus.own_name_on_connection(conn, "org.freedesktop.Notifications",
+                                           BusNameOwnerFlags.REPLACE | BusNameOwnerFlags.ALLOW_REPLACEMENT,
+                                           null,
+                                           (c, n) => {
+                                               warning("NotificationsService: Name org.freedesktop.Notifications was lost (Mako or another daemon running).");
+                                           });
             } catch (Error e) {
                 critical("NotificationsService: Failed to register DBus object: %s", e.message);
             }
         }
 
         public uint32 notify_incoming(string app_name, uint32 replaces_id, string app_icon, string summary, string body, string[] actions, HashTable<string, Variant> hints, int32 expire_timeout) {
-            uint32 id = last_id++;
             uint8 urgency = 1;
             if (hints.contains("urgency")) {
                 urgency = hints.lookup("urgency").get_byte();
             }
 
+            // Обработка замены существующего уведомления
+            if (replaces_id > 0) {
+                for (int i = 0; i < notifications.length; i++) {
+                    var existing = notifications.get(i);
+                    if (existing.id == replaces_id) {
+                        existing.app_name = app_name;
+                        existing.app_icon = app_icon;
+                        existing.summary = summary;
+                        existing.body = body;
+                        existing.actions = actions;
+                        existing.urgency = urgency;
+                        existing.created_on = new DateTime.now_local();
+
+                        notification_changed(notifications);
+                        return replaces_id;
+                    }
+                }
+            }
+
+            // ID уведомления строго > 0
+            uint32 id = ++last_id;
             var n = new Notification(id, app_name, app_icon, summary, body, actions, urgency);
             notifications.add(n);
 

@@ -1,3 +1,4 @@
+// Путь: src/panel/quick_settings/modules/WifiButton.vala
 using Gtk;
 using GLib;
 using NM;
@@ -11,20 +12,36 @@ namespace WayShell.QS {
         private NM.DeviceWifi? wifi_device = null;
         private bool ui_locked = false;
         private bool is_scanning = false;
-
-        // Строковый трекер активного подключения для точной отрисовки спиннеров
         public string? connecting_ssid = null;
 
+        // Быстрая однократная проверка наличия Wi-Fi оборудования в sysfs
+        public static bool has_wireless_hardware() {
+            var dir = File.new_for_path("/sys/class/net");
+            try {
+                var enumerator = dir.enumerate_children(FileAttribute.STANDARD_NAME, FileQueryInfoFlags.NONE);
+                FileInfo? info;
+                while ((info = enumerator.next_file()) != null) {
+                    string iface = info.get_name();
+                    string wireless_path = Path.build_filename("/sys/class/net", iface, "wireless");
+                    string phy80211_path = Path.build_filename("/sys/class/net", iface, "phy80211");
+                    if (FileUtils.test(wireless_path, FileTest.EXISTS | FileTest.IS_DIR) ||
+                        FileUtils.test(phy80211_path, FileTest.EXISTS | FileTest.IS_DIR)) {
+                        return true;
+                    }
+                }
+            } catch (Error e) {
+                // Игнорируем
+            }
+            return false;
+        }
+
         public WifiButton() {
-            // Создаем меню для модуля Wi-Fi
             var menu = new MenuWidget("Wi-Fi Networks", "network-wireless-signal-excellent-symbolic", true);
             menu.set_size_request(-1, 420);
 
-            // Инициализируем базовый GridButton
             base(ButtonType.WIFI, "Wi-Fi", "Offline", "network-wireless-offline-symbolic", menu);
             this.wifi_menu = menu;
 
-            // Настройка баннера ошибок в шапке меню
             var failure_banner_container = new Box(Orientation.HORIZONTAL, 0);
             failure_banner_container.add_css_class("failure-banner");
             
@@ -41,12 +58,10 @@ namespace WayShell.QS {
             failure_banner_container.append(dismiss_btn);
             wifi_menu.banner.set_child(failure_banner_container);
 
-            // Инициализируем спиннер загрузки в шапке списка сетей
             menu_spinner = new Spinner();
             menu_spinner.visible = false;
             wifi_menu.title_container.append(menu_spinner);
 
-            // Кнопка обновления списка сетей в шапке списка
             var refresh_btn = new Button.from_icon_name("view-refresh-symbolic");
             refresh_btn.valign = Align.CENTER;
             refresh_btn.halign = Align.END;
@@ -56,7 +71,6 @@ namespace WayShell.QS {
             });
             wifi_menu.title_container.append(refresh_btn);
 
-            // Находим сетевое устройство беспроводной связи Wi-Fi
             try {
                 nm_client = new NM.Client(null);
                 foreach (var dev in nm_client.get_devices()) {
@@ -70,10 +84,9 @@ namespace WayShell.QS {
             }
 
             if (wifi_device != null) {
-                // Подписываемся на изменения состояния подключения
                 wifi_device.notify["state"].connect(() => {
                     update_active_ap_status();
-                    refresh_wifi_list(); // <--- ОБНОВЛЯЕМ СПИСОК СЕТЕЙ ДЛЯ СВОЕВРЕМЕННОГО ТУШЕНИЯ СПИННЕРОВ И ВКЛЮЧЕНИЯ ГАЛОЧЕК
+                    refresh_wifi_list();
                 });
                 wifi_device.notify["active-access-point"].connect(() => {
                     update_active_ap_status();
@@ -88,9 +101,8 @@ namespace WayShell.QS {
                 }
             });
 
-            // Первичный опрос и запуск таймера обновления
             update_active_ap_status();
-            GLib.Timeout.add(2000, () => {
+            GLib.Timeout.add_seconds(3, () => {
                 update_active_ap_status();
                 return true;
             });
@@ -126,7 +138,6 @@ namespace WayShell.QS {
         private void update_active_ap_status() {
             if (ui_locked || nm_client == null || wifi_device == null) return;
 
-            // Если Wi-Fi выключен глобально в системе
             if (!nm_client.wireless_enabled) {
                 set_toggled(false);
                 subtitle.set_text("Offline");
@@ -167,7 +178,6 @@ namespace WayShell.QS {
                     name = "Connected";
                     icon_name = "network-wireless-signal-excellent-symbolic";
 
-                    // Пытаемся гарантированно получить SSID имя из активного профиля (активного соединения)
                     var active_conn = wifi_device.active_connection;
                     if (active_conn != null) {
                         name = active_conn.id;
@@ -288,8 +298,6 @@ namespace WayShell.QS {
         }
     }
 
-    // --- Класс строки-опции выбора точки доступа ---
-
     public class WifiMenuOption : Box {
         private NM.DeviceWifi dev;
         private NM.AccessPoint ap;
@@ -372,9 +380,7 @@ namespace WayShell.QS {
             bool is_active_ap = (active_ap != null && WifiButton.ap_to_name(active_ap) == WifiButton.ap_to_name(ap));
             string option_ssid = WifiButton.ap_to_name(ap);
 
-            // Проверяем, идет ли сейчас подключение именно к этой сети
             bool is_connecting_this = (parent_button.connecting_ssid != null && parent_button.connecting_ssid == option_ssid);
-
             has_sec = (ap.wpa_flags != 0 || ap.rsn_flags != 0);
 
             if (has_sec) {
@@ -407,7 +413,6 @@ namespace WayShell.QS {
             }
         }
 
-        // Проверяет, сохранен ли пароль для этой сети в системе NetworkManager
         private NM.Connection? find_existing_connection(string ssid) {
             if (parent_button.nm_client == null) return null;
             try {
@@ -465,12 +470,11 @@ namespace WayShell.QS {
             connect_to_ap.begin(password);
         }
 
-        // Асинхронное нативное подключение по сохраненному профилю libnm
         private async void connect_to_existing_ap(NM.Connection existing_connection) {
             if (parent_button.nm_client == null) return;
             
             string ssid = WifiButton.ap_to_name(ap);
-            parent_button.connecting_ssid = ssid; // Устанавливаем трекер подключения
+            parent_button.connecting_ssid = ssid;
             parent_button.refresh_wifi_list();
 
             try {
@@ -484,34 +488,30 @@ namespace WayShell.QS {
                 parent_button.wifi_menu.banner.set_reveal_child(true);
             }
 
-            parent_button.connecting_ssid = null; // Сбрасываем трекер
+            parent_button.connecting_ssid = null;
             parent_button.refresh_wifi_list();
         }
 
-        // Асинхронное нативное создание профиля и его активация в libnm
         private async void connect_to_ap(string? password) {
             if (parent_button.nm_client == null) return;
             
             string ssid = WifiButton.ap_to_name(ap);
-            parent_button.connecting_ssid = ssid; // Устанавливаем трекер подключения
+            parent_button.connecting_ssid = ssid;
             parent_button.refresh_wifi_list();
 
             try {
                 var connection = (NM.SimpleConnection) GLib.Object.new (typeof (NM.SimpleConnection));
 
-                // 1. Connection setting
                 var s_con = new NM.SettingConnection();
                 s_con.set_property("id", ssid);
                 s_con.set_property("type", "802-11-wireless");
                 connection.add_setting(s_con);
 
-                // 2. Wireless setting
                 var s_wifi = new NM.SettingWireless();
                 s_wifi.set_property("ssid", ap.get_ssid());
                 s_wifi.set_property("mode", "infrastructure");
                 connection.add_setting(s_wifi);
 
-                // 3. Security setting (WPA/WPA2/RSN PSK)
                 if (has_sec && password != null) {
                     var s_wsec = new NM.SettingWirelessSecurity();
                     s_wsec.set_property("key-mgmt", "wpa-psk");
@@ -519,7 +519,6 @@ namespace WayShell.QS {
                     connection.add_setting(s_wsec);
                 }
 
-                // 4. IP Configurations
                 var s_ip4 = new NM.SettingIP4Config();
                 s_ip4.set_property("method", "auto");
                 connection.add_setting(s_ip4);
@@ -532,11 +531,11 @@ namespace WayShell.QS {
                 parent_button.wifi_menu.banner.set_reveal_child(false);
 
             } catch (Error e) {
-                warning("WifiModule: Failed to connect and save connection to %s: %s", ssid, e.message);
+                warning("WifiModule: Failed to connect to %s: %s", ssid, e.message);
                 parent_button.wifi_menu.banner.set_reveal_child(true);
             }
 
-            parent_button.connecting_ssid = null; // Сбрасываем трекер
+            parent_button.connecting_ssid = null;
             parent_button.refresh_wifi_list();
         }
     }

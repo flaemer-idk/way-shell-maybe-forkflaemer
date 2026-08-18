@@ -1,3 +1,4 @@
+// Путь: src/panel/StatusBar.vala
 using Gtk;
 using Adw;
 using Gtk4LayerShell;
@@ -215,12 +216,10 @@ namespace WayShell.Panel {
 
         public PowerButton() {
             Object(orientation: Orientation.HORIZONTAL, spacing: 4);
+            this.visible = false;
             
             var upower = UPowerService.get_global();
-            if (upower == null) {
-                this.visible = false;
-                return;
-            }
+            if (upower == null) return;
 
             power_dev = upower.get_primary_device();
             if (power_dev == null || !power_dev.present) {
@@ -237,6 +236,7 @@ namespace WayShell.Panel {
             update_battery_status();
             power_dev.notify["percentage"].connect(update_battery_status);
             power_dev.notify["state"].connect(update_battery_status);
+            power_dev.notify["present"].connect(update_battery_status);
         }
 
         private void update_battery_status() {
@@ -244,8 +244,8 @@ namespace WayShell.Panel {
                 this.visible = false;
                 return;
             }
-            double percent = 0;
-            power_dev.get("percentage", out percent);
+            this.visible = true;
+            double percent = power_dev.percentage;
             label.set_text("%.0f%%".printf(percent));
             icon.set_from_icon_name(UPowerService.device_map_icon_name(power_dev));
         }

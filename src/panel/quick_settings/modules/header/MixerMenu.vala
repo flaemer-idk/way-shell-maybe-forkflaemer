@@ -14,7 +14,6 @@ namespace WayShell.QS {
             Object (orientation: Orientation.VERTICAL, spacing: 0);
             options_map = new HashTable<uint32, MixerMenuOption> (direct_hash, direct_equal);
 
-            // Инжектируем стили для кружков (активный - зеленый, приложения - пурпурный)
             var provider = new CssProvider ();
             provider.load_from_data ("""
                 .stream-active-dot {
@@ -22,6 +21,10 @@ namespace WayShell.QS {
                 }
                 .active-icon-activated {
                     color: #26a269;
+                }
+                .dim-label {
+                    opacity: 0.75;
+                    font-size: 13px;
                 }
             """.data);
             StyleContext.add_provider_for_display (Gdk.Display.get_default (), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
@@ -166,7 +169,6 @@ namespace WayShell.QS {
             this.is_stream = is_stream;
             this.add_css_class ("quick-settings-menu-option-mixer");
 
-            // Главный ряд элементов, строго выровненный по центру
             var main_row = new Box (Orientation.HORIZONTAL, 4);
             main_row.valign = Align.CENTER;
 
@@ -194,7 +196,6 @@ namespace WayShell.QS {
             button.set_child (btn_contents);
             main_row.append (button);
 
-            // Кнопка Mute на главной строчке
             mute_btn = new Button ();
             mute_btn.add_css_class ("circular");
             mute_btn.add_css_class ("flat");
@@ -212,17 +213,11 @@ namespace WayShell.QS {
             });
             main_row.append (mute_btn);
 
-            // Кнопки статуса на главной строчке
             if (!is_stream) {
-                // Интерактивная кнопка для физических колонок/микрофонов (Default)
                 default_btn = new Button ();
                 default_btn.css_classes = {"circular", "flat"};
                 default_btn.valign = Align.CENTER;
                 default_btn.halign = Align.CENTER;
-                default_btn.margin_start = 0;
-                default_btn.margin_end = 0;
-                default_btn.margin_top = 0;
-                default_btn.margin_bottom = 0;
 
                 default_dot = new Image.from_icon_name ("media-record-symbolic");
                 default_dot.valign = Align.CENTER;
@@ -243,15 +238,10 @@ namespace WayShell.QS {
                 });
                 main_row.append (default_btn);
             } else {
-                // Декоративная сиреневая кнопка для активных приложений (не кликабельна)
                 default_btn = new Button ();
                 default_btn.css_classes = {"circular", "flat"};
                 default_btn.valign = Align.CENTER;
                 default_btn.halign = Align.CENTER;
-                default_btn.margin_start = 0;
-                default_btn.margin_end = 0;
-                default_btn.margin_top = 0;
-                default_btn.margin_bottom = 0;
                 default_btn.sensitive = false;
 
                 default_dot = new Image.from_icon_name ("media-record-symbolic");
@@ -266,7 +256,6 @@ namespace WayShell.QS {
 
             this.append (main_row);
 
-            // Раскрывающееся подменю
             revealer = new Revealer ();
             revealer.transition_type = RevealerTransitionType.SWING_DOWN;
             revealer.transition_duration = 350;
@@ -292,47 +281,80 @@ namespace WayShell.QS {
             });
             rev_content.append (scale);
 
+            // --- 1. Для приложений: перенаправление потока ---
             if (is_stream) {
                 var wps = WirePlumberService.get_global ();
                 if (wps != null) {
-                    var routing_box = new Box (Orientation.HORIZONTAL, 8);
+                    var routing_box = new Box (Orientation.HORIZONTAL, 0);
                     routing_box.margin_start = 16;
                     routing_box.margin_end = 16;
-                    routing_box.margin_bottom = 4;
+                    routing_box.margin_bottom = 6;
                     
-                    string[] target_names;
-                    string[] target_serials;
+                    var targets = node.media_class.contains ("Output") ? wps.get_audio_sinks () : wps.get_audio_sources ();
+                    
+                    string[] target_names = new string[targets.length];
+                    uint32[] target_ids = new uint32[targets.length];
+                    string[] target_node_names = new string[targets.length];
+                    string[] target_serials = new string[targets.length];
 
-                    if (node.media_class.contains ("Output")) {
-                        var targets = wps.get_audio_sinks ();
-                        target_names = new string[targets.length];
-                        target_serials = new string[targets.length];
-                        for (int i = 0; i < targets.length; i++) {
-                            target_names[i] = targets[i].name;
-                            target_serials[i] = targets[i].node_name ?? targets[i].id.to_string ();
-                        }
-                    } else {
-                        var targets = wps.get_audio_sources ();
-                        target_names = new string[targets.length];
-                        target_serials = new string[targets.length];
-                        for (int i = 0; i < targets.length; i++) {
-                            target_names[i] = targets[i].name;
-                            target_serials[i] = targets[i].node_name ?? targets[i].id.to_string ();
+                    uint default_selected_idx = 0;
+                    var def_sink = wps.get_default_sink ();
+
+                    for (int i = 0; i < targets.length; i++) {
+                        target_names[i] = targets[i].name;
+                        target_ids[i] = targets[i].id;
+                        target_node_names[i] = targets[i].node_name ?? targets[i].id.to_string ();
+                        target_serials[i] = targets[i].serial ?? targets[i].id.to_string ();
+                        
+                        if (def_sink != null && targets[i].id == def_sink.id) {
+                            default_selected_idx = (uint) i;
                         }
                     }
 
                     if (target_names.length > 0) {
                         var dropdown = new DropDown.from_strings (target_names);
                         dropdown.hexpand = true;
+                        dropdown.set_selected (default_selected_idx);
+
                         dropdown.notify["selected"].connect (() => {
                             uint selected_idx = dropdown.get_selected ();
-                            if (selected_idx < target_serials.length) {
-                                string target_serial = target_serials[selected_idx];
-                                wps.route_stream (this.node.id, target_serial);
+                            if (selected_idx < targets.length) {
+                                wps.route_stream (this.node.id, target_ids[selected_idx], target_node_names[selected_idx], target_serials[selected_idx], this.node.pulse_id);
                             }
                         });
                         routing_box.append (dropdown);
                         rev_content.append (routing_box);
+                    }
+                }
+            }
+
+            // --- 2. Для Bluetooth-наушников/колонок: выбор кодека ---
+            if (!is_stream && node.node_name != null && node.node_name.contains ("bluez")) {
+                var wps = WirePlumberService.get_global ();
+                if (wps != null) {
+                    var codec_info = wps.get_bluetooth_codecs (node.node_name);
+                    if (codec_info != null && codec_info.display_names.length > 0) {
+                        var codec_box = new Box (Orientation.HORIZONTAL, 8);
+                        codec_box.margin_start = 16;
+                        codec_box.margin_end = 16;
+                        codec_box.margin_bottom = 6;
+
+                        var codec_icon = new Image.from_icon_name ("audio-headphones-symbolic");
+                        codec_icon.valign = Align.CENTER;
+                        codec_box.append (codec_icon);
+
+                        var codec_dropdown = new DropDown.from_strings (codec_info.display_names);
+                        codec_dropdown.hexpand = true;
+                        codec_dropdown.set_selected (codec_info.active_index);
+
+                        codec_dropdown.notify["selected"].connect (() => {
+                            uint selected_idx = codec_dropdown.get_selected ();
+                            if (selected_idx < codec_info.profile_names.length) {
+                                wps.set_bluetooth_codec (codec_info.card_name, codec_info.profile_names[selected_idx]);
+                            }
+                        });
+                        codec_box.append (codec_dropdown);
+                        rev_content.append (codec_box);
                     }
                 }
             }
@@ -397,7 +419,6 @@ namespace WayShell.QS {
             name_label.set_text (display_name);
         }
 
-        // Вспомогательный метод для динамического сканирования .desktop файлов в системе и поиска иконки приложения
         private string? get_app_icon_name (string app_name) {
             var apps = GLib.AppInfo.get_all ();
             string lower_app_name = app_name.ascii_down ();
@@ -435,7 +456,6 @@ namespace WayShell.QS {
                     return "microphone-sensitivity-high-symbolic";
                 }
             } else if (is_stream) {
-                // Пытаемся получить настоящую иконку плеера/приложения
                 string? app_icon = get_app_icon_name (node.name);
                 if (app_icon != null && app_icon != "") {
                     return app_icon;

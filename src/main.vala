@@ -1,3 +1,4 @@
+// Путь: src/main.vala
 using Gtk;
 using Adw;
 using WayShell.Services;
@@ -13,11 +14,9 @@ public class WayShellApp : Adw.Application {
     }
 
     protected override void activate() {
-        // Регистрация CSS ресурсов оформления
         var resource = gresources_get_resource();
         GLib.resources_register(resource);
         
-        // Скрытое окно-заглушка для предотвращения выхода при отключении монитора
         global_window = new Adw.ApplicationWindow(this);
         add_window(global_window);
 
@@ -27,9 +26,12 @@ public class WayShellApp : Adw.Application {
         ThemeService.get_global();
         IpcService.get_global();
         NiriClient.get_global();
+        NotificationsService.get_global();
+
+        // Инициализация MessageTray на старте гарантирует, что список уведомлений сразу слушает D-Bus
+        MessageTray.get_global();
 
         // Инициализация графических оверлеев
-        WayShell.Dialog.DialogOverlay.get_global();
         WayShell.Osd.Osd.get_global();
 
         // Запуск интерфейса панелей на мониторах

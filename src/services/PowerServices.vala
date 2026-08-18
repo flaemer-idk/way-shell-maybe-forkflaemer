@@ -49,11 +49,9 @@ namespace WayShell.Services {
             double percent = dev.percentage;
             uint state = dev.state;
 
-            // Округляем процент до ближайшего десятка
             int step = ((int) percent + 5) / 10 * 10;
             step = int.max (0, int.min (step, 100));
 
-            // Если батарея в процессе зарядки (state == 2)
             if (state == 2) {
                 if (step == 100) {
                     return "battery-level-100-charged-symbolic";
@@ -61,7 +59,6 @@ namespace WayShell.Services {
                 return "battery-level-%d-charging-symbolic".printf(step);
             }
 
-            // Стандартное отображение разряда
             return "battery-level-%d-symbolic".printf(step);
         }
     }
@@ -69,59 +66,69 @@ namespace WayShell.Services {
     public class UpDevice : GLib.Object {
         private string bat_dir = "";
 
-        // Свойства GObject с автоматическим уведомлением об изменении (notify)
-        public double percentage { get; set; default = 100.0; }
+        public double percentage { get; set; default = 0.0; }
         public uint state { get; set; default = 1; }
         public bool present { get; set; default = false; }
 
         public UpDevice() {
-            // Ищем папки BAT0 или BAT1 в системной sysfs
-            for (int i = 0; i < 2; i++) {
-                string path = "/sys/class/power_supply/BAT%d".printf(i);
-                if (FileUtils.test(path, FileTest.EXISTS | FileTest.IS_DIR)) {
-                    bat_dir = path;
-                    present = true;
-                    break;
-                }
-            }
+            check_battery_present();
             update_status();
 
-            // Запускаем мягкий таймер на обновление раз в 5 секунд
             GLib.Timeout.add_seconds(5, () => {
+                check_battery_present();
                 update_status();
                 return true;
             });
         }
 
-        private void update_status() {
-            if (bat_dir == "") {
-                present = false;
+        private void check_battery_present() {
+            bool found = false;
+            for (int i = 0; i < 4; i++) {
+                string path = "/sys/class/power_supply/BAT%d".printf(i);
+                if (FileUtils.test(path, FileTest.EXISTS | FileTest.IS_DIR)) {
+                    string type_content;
+                    if (FileUtils.get_contents(Path.build_filename(path, "type"), out type_content)) {
+                        if (type_content.strip().down() == "battery") {
+                            bat_dir = path;
+                            found = true;
+                            break;
+                        }
+                    } else {
+                        bat_dir = path;
+                        found = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!found) {
+                bat_dir = "";
+                this.present = false;
                 return;
             }
 
-            // Читаем, присутствует ли физически батарея в слоте (для ноутбуков без АКБ или halftop)
             try {
                 string content;
                 FileUtils.get_contents(Path.build_filename(bat_dir, "present"), out content);
                 this.present = (content.strip() == "1");
             } catch (Error e) {
-                this.present = true; // Фолбек: если файла нет, но директория есть, считаем присутствующей
+                this.present = true;
             }
+        }
 
-            if (!present) {
+        private void update_status() {
+            if (!present || bat_dir == "") {
                 return;
             }
 
-            // Читаем текущий процент заряда
             try {
                 string content;
                 FileUtils.get_contents(Path.build_filename(bat_dir, "capacity"), out content);
                 this.percentage = double.parse(content.strip());
             } catch (Error e) {
-                this.percentage = 100.0;
+                this.percentage = 0.0;
             }
 
-            // Читаем статус батареи (заряжается/разряжается)
             try {
                 string content;
                 FileUtils.get_contents(Path.build_filename(bat_dir, "status"), out content);

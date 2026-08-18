@@ -1,6 +1,6 @@
+// Путь: src/panel/quick_settings/modules/header/PowerMenu.vala
 using Gtk;
 using GLib;
-using WayShell.Dialog;
 
 namespace WayShell.QS {
     [DBus (name = "org.freedesktop.login1.Manager")]
@@ -24,41 +24,29 @@ namespace WayShell.QS {
             this.append(menu);
 
             var suspend_row = new PowerButtonRow(this, "Suspend", () => {
-                var dialog = DialogOverlay.get_global();
                 Drawer.get_global().set_hidden();
-                dialog.present("Suspend?", "Are you sure you want to suspend?", () => {
-                    do_suspend();
-                });
+                do_suspend();
             });
             menu.options.append(suspend_row);
             rows.add(suspend_row);
 
             var restart_row = new PowerButtonRow(this, "Restart", () => {
-                var dialog = DialogOverlay.get_global();
                 Drawer.get_global().set_hidden();
-                dialog.present("Restart?", "Are you sure you want to restart?", () => {
-                    do_reboot();
-                });
+                do_reboot();
             });
             menu.options.append(restart_row);
             rows.add(restart_row);
 
             var poweroff_row = new PowerButtonRow(this, "Power Off", () => {
-                var dialog = DialogOverlay.get_global();
                 Drawer.get_global().set_hidden();
-                dialog.present("Power Off?", "Are you sure you want to power off?", () => {
-                    do_power_off();
-                });
+                do_power_off();
             });
             menu.options.append(poweroff_row);
             rows.add(poweroff_row);
 
-            var logout_row = new PowerButtonRow(this, "Log Out...", () => {
-                var dialog = DialogOverlay.get_global();
+            var logout_row = new PowerButtonRow(this, "Log Out", () => {
                 Drawer.get_global().set_hidden();
-                dialog.present("Log Out?", "Are you sure you want to log out?", () => {
-                    do_logout();
-                });
+                do_logout();
             });
             menu.options.append(logout_row);
             rows.add(logout_row);
@@ -104,11 +92,10 @@ namespace WayShell.QS {
                     var manager = Bus.get_proxy_sync<Login1Manager>(BusType.SYSTEM, "org.freedesktop.login1", "/org/freedesktop/login1");
                     manager.terminate_session(session_id);
                 } else {
-                    warning("PowerMenu: XDG_SESSION_ID is not set, falling back to loginctl spawn");
                     Process.spawn_command_line_async("loginctl terminate-session self");
                 }
             } catch (Error e) {
-                warning("PowerMenu: Failed to logout natively: %s", e.message);
+                warning("PowerMenu: Failed to logout: %s", e.message);
             }
         }
     }
@@ -136,7 +123,7 @@ namespace WayShell.QS {
             revealer.transition_duration = 250;
             revealer.hexpand = true;
 
-            confirm_button = new Button.with_label("Confirm");
+            confirm_button = new Button.with_label("Confirm " + title);
             confirm_button.add_css_class("confirm-button");
             confirm_button.hexpand = true;
             confirm_button.clicked.connect((owned) action);

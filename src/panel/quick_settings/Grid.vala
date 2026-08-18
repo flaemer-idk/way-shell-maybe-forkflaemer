@@ -1,3 +1,4 @@
+// Путь: src/panel/quick_settings/Grid.vala
 using Gtk;
 
 namespace WayShell.QS {
@@ -16,8 +17,20 @@ namespace WayShell.QS {
         }
 
         private void setup_grid_layout() {
-            // Регистрация модулей быстрых настроек
-            add_button(new WifiButton());
+            // Wi-Fi (только если есть чип)
+            if (WifiButton.has_wireless_hardware()) {
+                add_button(new WifiButton());
+            }
+
+            // Ethernet
+            add_button(new EthernetButton());
+
+            // Bluetooth (только если есть адаптер)
+            if (BluetoothButton.has_bluetooth_hardware()) {
+                add_button(new BluetoothButton());
+            }
+
+            // Не беспокоить
             add_button(new DndButton());
         }
 

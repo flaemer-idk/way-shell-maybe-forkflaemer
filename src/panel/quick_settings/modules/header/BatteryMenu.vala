@@ -12,6 +12,7 @@ namespace WayShell.QS {
 
         public BatteryMenu() {
             Object(orientation: Orientation.VERTICAL, spacing: 0);
+            this.visible = false;
 
             menu = new MenuWidget("Battery Status", "battery-full-symbolic", false);
             this.append(menu);
@@ -45,18 +46,18 @@ namespace WayShell.QS {
                     update_status();
                     power_dev.notify["percentage"].connect(update_status);
                     power_dev.notify["state"].connect(update_status);
+                    power_dev.notify["present"].connect(update_status);
                 }
             }
         }
 
         private void update_status() {
-            if (power_dev == null) return;
-            if (!power_dev.present) {
-                battery_bar.set_fraction(1.0);
-                battery_percentage.set_text("∞%");
-                battery_time.set_text("AC Power (Desktop)");
+            if (power_dev == null || !power_dev.present) {
+                this.visible = false;
                 return;
             }
+            this.visible = true;
+
             double percent = power_dev.percentage;
             uint state = power_dev.state;
 

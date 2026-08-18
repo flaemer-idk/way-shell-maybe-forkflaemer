@@ -6,7 +6,9 @@ namespace WayShell.QS {
     public class Header : Box {
         public CenterBox center_box;
         
+        public Box start_box;
         public BatteryButton battery_button;
+        public UptimeWidget uptime_widget;
         public BatteryMenu battery_menu;
         public Revealer battery_revealer;
 
@@ -26,9 +28,14 @@ namespace WayShell.QS {
             center_box.name = "quick-settings-header";
             this.append(center_box);
 
-            // --- Левая часть: кнопка батареи ---
+            // --- Левая часть: батарея (если есть) + аптайм ---
+            start_box = new Box(Orientation.HORIZONTAL, 8);
             battery_button = new BatteryButton();
-            center_box.set_start_widget(battery_button);
+            uptime_widget = new UptimeWidget();
+
+            start_box.append(battery_button);
+            start_box.append(uptime_widget);
+            center_box.set_start_widget(start_box);
 
             // --- Правая часть: кнопки микшера и выключения ---
             var buttons_box = new Box(Orientation.HORIZONTAL, 8);

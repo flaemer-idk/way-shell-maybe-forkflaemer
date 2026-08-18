@@ -1,5 +1,6 @@
 { lib
 , stdenv
+, fetchFromGitHub
 , meson
 , ninja
 , pkg-config
@@ -20,15 +21,15 @@
 
 stdenv.mkDerivation rec {
   pname = "way-shell";
-  version = "6.7";
+  version = "6.7.67";
+
   src = fetchFromGitHub {
     githubBase = "codeberg.org";
     owner = "flaemer";
     repo = "way-shell-maybeforkflaemer";
-    rev = "main";
-    hash = "sha256-";
+    rev = "v${version}"; # либо "main", если собираете прямо из ветки main
+    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # Замените на реальный хэш
   };
-
 
   nativeBuildInputs = [
     meson
@@ -61,13 +62,12 @@ stdenv.mkDerivation rec {
 
   NIX_CFLAGS_COMPILE = [
     "-O3"                 
-    "-march=native"         
     "-flto"                   
   ];
 
   meta = with lib; {
     description = "Lightweight Wayland shell for Niri";
-    homepage = "https://codeberg.org/flaemer/way-shell-maybeforkflaemer";
+    homepage = "https://github.com/flaemer-idk/way-shell-maybe-forkflaemer";
     license = licenses.gpl2Only;
     platforms = platforms.linux;
   };

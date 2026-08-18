@@ -5,10 +5,7 @@ project('way-shell', 'vala', 'c',
 
 vala = meson.get_compiler('vala')
 
-# Добавлен флаг '--disable-assert', отключающий runtime-проверки Vala для экономии памяти и ресурсов процессора
 add_project_arguments(['--disable-warnings', '--disable-assert'], language: 'vala')
-
-# Настраиваем компилятор Vala на поиск VAPI в нашей локальной папке vapi/
 add_project_arguments(['--vapidir=' + join_paths(meson.current_source_dir(), 'vapi')], language: 'vala')
 
 dependencies = [
@@ -57,14 +54,16 @@ sources = [
   'src/panel/quick_settings/GridCluster.vala',
   'src/panel/quick_settings/MenuWidget.vala',
   'src/panel/quick_settings/modules/header/BatteryButton.vala',
+  'src/panel/quick_settings/modules/header/UptimeWidget.vala',
   'src/panel/quick_settings/modules/header/BatteryMenu.vala',
   'src/panel/quick_settings/modules/header/PowerMenu.vala',
   'src/panel/quick_settings/modules/header/MixerMenu.vala',
   'src/panel/quick_settings/modules/header/Header.vala',
   'src/panel/quick_settings/modules/WifiButton.vala',
+  'src/panel/quick_settings/modules/EthernetButton.vala',
+  'src/panel/quick_settings/modules/BluetoothButton.vala',
   'src/panel/quick_settings/modules/DndButton.vala',
   'src/osd/Osd.vala',
-  'src/dialog_overlay/DialogOverlay.vala',
   'src/panel/Panel.vala',
   'src/panel/Clock.vala',
   'src/panel/IndicatorBar.vala',
@@ -81,12 +80,11 @@ resources = gnome.compile_resources('gresources',
   source_dir: '.'
 )
 
-# Сборка основного процесса панели
 executable('way-shell',
   sources,
   c_sources,
   resources,
   dependencies: dependencies,
-  include_directories: include_directories('src/c'), # Подключение директории C-заголовков
+  include_directories: include_directories('src/c'),
   install: true
 )
