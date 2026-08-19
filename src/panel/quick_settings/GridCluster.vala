@@ -1,3 +1,4 @@
+// Путь: src/panel/quick_settings/GridCluster.vala
 using Gtk;
 
 namespace WayShell.QS {
@@ -65,6 +66,12 @@ namespace WayShell.QS {
             }
 
             if (button.revealer != null) {
+                if (button.revealer.get_parent() != null) {
+                    var p = button.revealer.get_parent();
+                    if (p is Box) {
+                        ((Box) p).remove(button.revealer);
+                    }
+                }
                 this.append(button.revealer);
             }
         }
@@ -91,7 +98,7 @@ namespace WayShell.QS {
                 right = dummy_right;
             }
 
-            if (button.revealer != null) {
+            if (button.revealer != null && button.revealer.get_parent() == this) {
                 this.remove(button.revealer);
             }
 

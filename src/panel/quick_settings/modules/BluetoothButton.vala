@@ -36,6 +36,8 @@ namespace WayShell.QS {
     interface BluezObjectManager : GLib.Object {
         [DBus (name = "GetManagedObjects")]
         public abstract HashTable<string, HashTable<string, HashTable<string, Variant>>> get_managed_objects () throws GLib.Error;
+        public signal void interfaces_added (ObjectPath object_path, HashTable<string, HashTable<string, Variant>> interfaces_and_properties);
+        public signal void interfaces_removed (ObjectPath object_path, string[] interfaces);
     }
 
     public class BluetoothButton : GridButton {
@@ -50,6 +52,8 @@ namespace WayShell.QS {
 
         private bool is_scanning = false;
         private string? connecting_path = null;
+
+        public signal void state_changed();
 
         public static bool has_bluetooth_hardware() {
             var dir = File.new_for_path("/sys/class/bluetooth");
@@ -115,6 +119,21 @@ namespace WayShell.QS {
                 }
             });
 
+            // Слушаем появление/исчезновение Bluez адаптеров
+            try {
+                var manager = Bus.get_proxy_sync<BluezObjectManager> (BusType.SYSTEM, "org.bluez", "/");
+                manager.interfaces_added.connect(() => {
+                    update_bluetooth_status();
+                    refresh_devices();
+                    state_changed();
+                });
+                manager.interfaces_removed.connect(() => {
+                    update_bluetooth_status();
+                    refresh_devices();
+                    state_changed();
+                });
+            } catch (Error e) {}
+
             toggle.clicked.connect(on_bluetooth_toggle);
             reveal_changed.connect((is_revealed) => {
                 if (is_revealed) {
@@ -175,11 +194,12 @@ namespace WayShell.QS {
             GLib.Timeout.add(500, () => {
                 update_bluetooth_status();
                 refresh_devices();
+                state_changed();
                 return false;
             });
         }
 
-        private bool update_bluetooth_status() {
+        public bool update_bluetooth_status() {
             string path;
             var adapter = get_adapter(out path);
             if (adapter == null) {

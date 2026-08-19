@@ -62,6 +62,9 @@ private void init_layout() {
         
         public void set_visible() {
             will_show();
+            if (qs_grid != null) {
+                qs_grid.refresh_grid_layout();
+            }
             win.set_opacity(1.0);
             win.present();
             visible();

@@ -7,7 +7,9 @@ namespace WayShell.QS {
     public class EthernetButton : GridButton {
         public MenuWidget eth_menu;
         public NM.Client? nm_client = null;
-        private NM.DeviceEthernet? eth_device = null;
+        public NM.DeviceEthernet? eth_device = null;
+
+        public signal void state_changed();
 
         public EthernetButton() {
             var menu = new MenuWidget("Wired Network", "network-wired-symbolic", true);
@@ -23,21 +25,31 @@ namespace WayShell.QS {
                 warning("EthernetButton: Failed to connect to NetworkManager: %s", e.message);
             }
 
-            if (eth_device != null) {
-                eth_device.notify["state"].connect(() => {
-                    update_status();
-                    refresh_eth_list();
-                });
-                eth_device.notify["carrier"].connect(() => {
-                    update_status();
-                    refresh_eth_list();
-                });
-                eth_device.notify["speed"].connect(update_status);
-            }
-
             if (nm_client != null) {
-                nm_client.notify["networking-enabled"].connect(update_status);
-                nm_client.notify["primary-connection"].connect(update_status);
+                nm_client.notify["networking-enabled"].connect(() => {
+                    update_status();
+                    state_changed();
+                });
+                nm_client.notify["primary-connection"].connect(() => {
+                    update_status();
+                    state_changed();
+                });
+                // Отслеживание подключения/отключения сетевых карт на лету (USB-Ethernet и др.)
+                nm_client.device_added.connect((dev) => {
+                    if (dev.device_type == NM.DeviceType.ETHERNET) {
+                        find_ethernet_device();
+                        update_status();
+                        state_changed();
+                    }
+                });
+                nm_client.device_removed.connect((dev) => {
+                    if (dev == eth_device) {
+                        eth_device = null;
+                        find_ethernet_device();
+                        update_status();
+                        state_changed();
+                    }
+                });
             }
 
             toggle.clicked.connect(on_toggle_clicked);
@@ -52,13 +64,63 @@ namespace WayShell.QS {
             });
         }
 
-        private void find_ethernet_device() {
+        private void setup_device_signals() {
+            if (eth_device == null) return;
+
+            eth_device.notify["state"].connect(() => {
+                update_status();
+                refresh_eth_list();
+                state_changed();
+            });
+            eth_device.notify["carrier"].connect(() => {
+                update_status();
+                refresh_eth_list();
+                state_changed();
+            });
+            eth_device.notify["speed"].connect(update_status);
+        }
+
+        public void find_ethernet_device() {
             if (nm_client == null) return;
             foreach (var dev in nm_client.get_devices()) {
                 if (dev.device_type == NM.DeviceType.ETHERNET) {
                     eth_device = (NM.DeviceEthernet) dev;
+                    setup_device_signals();
                     break;
                 }
+            }
+        }
+
+        /**
+         * Логика умного показа:
+         * - Если кабеля нет, но есть Wi-Fi (ноутбук) -> скрываем
+         * - Если кабеля нет и Wi-Fi нет (ПК) -> показываем Unplugged
+         * - Если кабель вставлен -> показываем всегда
+         */
+        public bool should_be_visible() {
+            if (nm_client == null) {
+                try {
+                    nm_client = new NM.Client(null);
+                } catch (Error e) {
+                    return false;
+                }
+            }
+
+            if (eth_device == null) {
+                find_ethernet_device();
+            }
+
+            if (eth_device == null) {
+                return false;
+            }
+
+            bool has_wifi = WifiButton.has_wireless_hardware();
+            bool carrier = eth_device.carrier;
+
+            if (carrier) {
+                return true;
+            } else {
+                return !has_wifi;
             }
         }
 
@@ -80,7 +142,11 @@ namespace WayShell.QS {
             }
         }
 
-        private void update_status() {
+        public void update_status() {
+            if (nm_client == null || eth_device == null) {
+                find_ethernet_device();
+            }
+
             if (nm_client == null || eth_device == null) {
                 set_toggled(false);
                 subtitle.set_text("Unavailable");
@@ -171,7 +237,6 @@ namespace WayShell.QS {
                     header_row.append(state_label);
                     item_box.append(header_row);
 
-                    // Дополнительные детали интерфейса (Скорость, IP, MAC)
                     var details_box = new Box(Orientation.VERTICAL, 2);
                     details_box.margin_start = 24;
 

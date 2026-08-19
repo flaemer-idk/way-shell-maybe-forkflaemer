@@ -14,7 +14,9 @@ namespace WayShell.QS {
         private bool is_scanning = false;
         public string? connecting_ssid = null;
 
-        // Быстрая однократная проверка наличия Wi-Fi оборудования в sysfs
+        public signal void state_changed();
+
+        // Быстрая проверка наличия Wi-Fi оборудования в sysfs
         public static bool has_wireless_hardware() {
             var dir = File.new_for_path("/sys/class/net");
             try {
@@ -73,24 +75,30 @@ namespace WayShell.QS {
 
             try {
                 nm_client = new NM.Client(null);
-                foreach (var dev in nm_client.get_devices()) {
-                    if (dev.device_type == NM.DeviceType.WIFI) {
-                        wifi_device = (NM.DeviceWifi) dev;
-                        break;
-                    }
-                }
+                find_wifi_device();
             } catch (Error e) {
                 warning("WifiButton: Failed to connect to NetworkManager: %s", e.message);
             }
 
-            if (wifi_device != null) {
-                wifi_device.notify["state"].connect(() => {
+            if (nm_client != null) {
+                nm_client.notify["wireless-enabled"].connect(() => {
                     update_active_ap_status();
-                    refresh_wifi_list();
+                    state_changed();
                 });
-                wifi_device.notify["active-access-point"].connect(() => {
-                    update_active_ap_status();
-                    refresh_wifi_list();
+                nm_client.device_added.connect((dev) => {
+                    if (dev.device_type == NM.DeviceType.WIFI) {
+                        find_wifi_device();
+                        update_active_ap_status();
+                        state_changed();
+                    }
+                });
+                nm_client.device_removed.connect((dev) => {
+                    if (dev == wifi_device) {
+                        wifi_device = null;
+                        find_wifi_device();
+                        update_active_ap_status();
+                        state_changed();
+                    }
                 });
             }
 
@@ -106,6 +114,27 @@ namespace WayShell.QS {
                 update_active_ap_status();
                 return true;
             });
+        }
+
+        public void find_wifi_device() {
+            if (nm_client == null) return;
+            wifi_device = null;
+            foreach (var dev in nm_client.get_devices()) {
+                if (dev.device_type == NM.DeviceType.WIFI) {
+                    wifi_device = (NM.DeviceWifi) dev;
+                    wifi_device.notify["state"].connect(() => {
+                        update_active_ap_status();
+                        refresh_wifi_list();
+                        state_changed();
+                    });
+                    wifi_device.notify["active-access-point"].connect(() => {
+                        update_active_ap_status();
+                        refresh_wifi_list();
+                        state_changed();
+                    });
+                    break;
+                }
+            }
         }
 
         private void on_toggle_clicked() {
@@ -127,15 +156,17 @@ namespace WayShell.QS {
                     GLib.Timeout.add_seconds(3, () => {
                         ui_locked = false;
                         update_active_ap_status();
+                        state_changed();
                         return false;
                     });
                 }
+                state_changed();
             } catch (Error e) {
                 warning("WifiButton: Failed to toggle wireless: %s", e.message);
             }
         }
 
-        private void update_active_ap_status() {
+        public void update_active_ap_status() {
             if (ui_locked || nm_client == null || wifi_device == null) return;
 
             if (!nm_client.wireless_enabled) {
