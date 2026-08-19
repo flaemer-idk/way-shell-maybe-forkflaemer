@@ -28,16 +28,16 @@ public class WayShellApp : Adw.Application {
         NiriClient.get_global();
         NotificationsService.get_global();
 
-        // Инициализация MessageTray на старте гарантирует, что список уведомлений сразу слушает D-Bus
+        // Инициализация MessageTray на старте
         MessageTray.get_global();
 
-        // Инициализация графических оверлеев
+        // Инициализация графических оверлеев и баннеров уведомлений
         WayShell.Osd.Osd.get_global();
+        WayShell.Osd.NotificationBanner.get_global(); 
 
         // Запуск интерфейса панелей на мониторах
         Panel.activate_subsystem(this);
     }
-
     public static int main(string[] args) {
         var app = new WayShellApp();
         return app.run(args);

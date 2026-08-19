@@ -64,6 +64,7 @@ sources = [
   'src/panel/quick_settings/modules/BluetoothButton.vala',
   'src/panel/quick_settings/modules/DndButton.vala',
   'src/osd/Osd.vala',
+  'src/osd/NotificationBanner.vala',
   'src/panel/Panel.vala',
   'src/panel/Clock.vala',
   'src/panel/IndicatorBar.vala',

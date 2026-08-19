@@ -24,6 +24,7 @@ namespace WayShell.Panel {
 
         public signal void collapsed();
         public signal void expanded_signal();
+        public signal void activated();
 
         public NotificationWidget(Services.Notification n, bool is_osd = false) {
             Object(orientation: Orientation.VERTICAL, spacing: 0);
@@ -172,14 +173,16 @@ namespace WayShell.Panel {
         }
 
         private void on_dismiss_clicked() {
+            // Закрываем/удаляем уведомление ТОЛЬКО по крестику
             var ns = Services.NotificationsService.get_global();
             ns.closed_notification(id, 2);
         }
 
         private void on_body_clicked() {
+            // При нажатии на текст/тело только вызываем действие приложения (уведомление остается в списке)
             var ns = Services.NotificationsService.get_global();
             ns.invoke_action(id, "default");
-            ns.closed_notification(id, 3);
+            activated();
         }
 
         private bool update_timer() {
