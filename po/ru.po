@@ -1,0 +1,554 @@
+# Русский перевод way-shell.
+# Этот файл распространяется под той же лицензией, что и way-shell.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: way-shell\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-06 06:18+0700\n"
+"PO-Revision-Date: 2026-09-05 10:30+0700\n"
+"Last-Translator: flaemer\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+#. Для скринридера это была безымянная кнопка с меняющейся цифрой внутри.
+#: src/panel/Clock.vala:38
+msgid "Date and time: open notification center"
+msgstr "Дата и время: открыть центр уведомлений"
+
+#: src/panel/Clock.vala:39
+msgid "Notification center"
+msgstr "Центр уведомлений"
+
+#: src/panel/Clock.vala:103
+msgid "do not disturb"
+msgstr "не беспокоить"
+
+#: src/panel/Clock.vala:105
+#, c-format
+msgid "%u notifications"
+msgstr "уведомлений: %u"
+
+#: src/panel/Clock.vala:107
+msgid "no notifications"
+msgstr "уведомлений нет"
+
+#: src/panel/Clock.vala:110
+#, c-format
+msgid "Notification center, %s"
+msgstr "Центр уведомлений, %s"
+
+#: src/panel/Panel.vala:101
+msgid "Player: click to play or pause, scroll to change track"
+msgstr "Плеер: клик — воспроизведение или пауза, колесо — переключение трека"
+
+#: src/panel/Panel.vala:175
+#, c-format
+msgid "Player, playing: %s"
+msgstr "Плеер, играет: %s"
+
+#: src/panel/Panel.vala:176
+#, c-format
+msgid "Player, paused: %s"
+msgstr "Плеер, пауза: %s"
+
+#. Всё содержимое — шесть иконок без текста, так что без явной метки
+#. скринридер видит только «кнопка».
+#: src/panel/StatusBar.vala:28 src/panel/StatusBar.vala:31
+#: src/panel/StatusBar.vala:87
+msgid "Quick settings"
+msgstr "Быстрые настройки"
+
+#: src/panel/StatusBar.vala:91
+msgid "Quick settings: "
+msgstr "Быстрые настройки: "
+
+#: src/panel/StatusBar.vala:100
+msgid "idle inhibited"
+msgstr "блокировка простоя"
+
+#: src/panel/StatusBar.vala:101
+msgid "night light"
+msgstr "ночной свет"
+
+#: src/panel/StatusBar.vala:102
+msgid "VPN"
+msgstr "VPN"
+
+#: src/panel/StatusBar.vala:103
+msgid "network"
+msgstr "сеть"
+
+#: src/panel/StatusBar.vala:104
+msgid "sound"
+msgstr "звук"
+
+#: src/panel/StatusBar.vala:105
+msgid "battery"
+msgstr "батарея"
+
+#: src/panel/StatusBar.vala:106
+msgid "webcam in use"
+msgstr "веб-камера используется"
+
+#: src/panel/StatusBar.vala:134
+msgid "Webcam in use"
+msgstr "Веб-камера используется"
+
+#: src/panel/StatusBar.vala:232
+msgid "Network: disconnected"
+msgstr "Сеть: нет подключения"
+
+#: src/panel/StatusBar.vala:235
+msgid "Network: connecting"
+msgstr "Сеть: подключение"
+
+#. Имя сети в подсказке: без него по силе сигнала не понять,
+#. это своя точка, телефон или чужая соседская.
+#: src/panel/StatusBar.vala:244
+#, c-format
+msgid "Wi-Fi: %s (%u%%)"
+msgstr "Wi-Fi: %s (%u%%)"
+
+#: src/panel/StatusBar.vala:251
+#, c-format
+msgid "Wired: %s"
+msgstr "Кабель: %s"
+
+#: src/panel/StatusBar.vala:252
+msgid "Wired: connected"
+msgstr "Кабель: подключён"
+
+#: src/panel/StatusBar.vala:296
+msgid "Microphone in use, muted"
+msgstr "Микрофон используется, звук выключен"
+
+#: src/panel/StatusBar.vala:297
+#, c-format
+msgid "Microphone in use: %s"
+msgstr "Микрофон используется: %s"
+
+#: src/panel/StatusBar.vala:306
+msgid "Sound: muted"
+msgstr "Звук: выключен"
+
+#: src/panel/StatusBar.vala:307 src/panel/quick_settings/Scales.vala:230
+#, c-format
+msgid "Volume: %s"
+msgstr "Громкость: %s"
+
+#. Внутри кнопки только иконка и проценты, так что метку задаём явно.
+#: src/panel/StatusBar.vala:351
+#: src/panel/quick_settings/modules/header/BatteryButton.vala:46
+#, c-format
+msgid "Battery: %s"
+msgstr "Батарея: %s"
+
+#: src/panel/message_tray/Calendar.vala:28
+#: src/panel/message_tray/Calendar.vala:29
+msgid "Previous month"
+msgstr "Предыдущий месяц"
+
+#: src/panel/message_tray/Calendar.vala:34
+#: src/panel/message_tray/Calendar.vala:35
+msgid "Next month"
+msgstr "Следующий месяц"
+
+#: src/panel/message_tray/Calendar.vala:56
+#: src/panel/message_tray/Calendar.vala:57
+msgid "Go to today"
+msgstr "Перейти к сегодняшнему дню"
+
+#. Кнопка только с иконкой: без метки скринридер видит безымянную кнопку.
+#: src/panel/message_tray/MessageTray.vala:27
+#: src/panel/message_tray/MessageTray.vala:29
+#, c-format
+msgid "Dismiss all notifications from %s"
+msgstr "Убрать все уведомления от %s"
+
+#: src/panel/message_tray/NotificationWidget.vala:73
+#: src/panel/message_tray/NotificationWidget.vala:333
+msgid "Just now"
+msgstr "Только что"
+
+#. Кнопки только с иконкой — без меток скринридер не скажет, что это.
+#: src/panel/message_tray/NotificationWidget.vala:89
+#: src/panel/message_tray/NotificationWidget.vala:90
+#: src/panel/message_tray/NotificationWidget.vala:310
+#: src/panel/message_tray/NotificationWidget.vala:312
+msgid "Expand notification"
+msgstr "Развернуть уведомление"
+
+#: src/panel/message_tray/NotificationWidget.vala:98
+#: src/panel/message_tray/NotificationWidget.vala:99
+msgid "Dismiss notification"
+msgstr "Убрать уведомление"
+
+#: src/panel/message_tray/NotificationWidget.vala:301
+#: src/panel/message_tray/NotificationWidget.vala:303
+msgid "Collapse notification"
+msgstr "Свернуть уведомление"
+
+#: src/panel/message_tray/NotificationWidget.vala:335
+#, c-format
+msgid "%ldm ago"
+msgstr "%ld мин назад"
+
+#: src/panel/message_tray/NotificationWidget.vala:337
+#, c-format
+msgid "%ldh ago"
+msgstr "%ld ч назад"
+
+#. Стрелка без метки для скринридера — безымянная кнопка; берём имя
+#. из заголовка самой кнопки.
+#: src/panel/quick_settings/GridButton.vala:96
+#: src/panel/quick_settings/GridButton.vala:98
+#, c-format
+msgid "%s: more"
+msgstr "%s: подробнее"
+
+#. Кнопка — только иконка, без метки скринридер не скажет, что это.
+#: src/panel/quick_settings/Scales.vala:40
+msgid "Sound: mute or unmute"
+msgstr "Звук: включить или выключить"
+
+#: src/panel/quick_settings/Scales.vala:44
+msgid "Volume"
+msgstr "Громкость"
+
+#: src/panel/quick_settings/Scales.vala:96
+msgid "Microphone: mute or unmute"
+msgstr "Микрофон: включить или выключить"
+
+#: src/panel/quick_settings/Scales.vala:101
+msgid "Microphone sensitivity"
+msgstr "Чувствительность микрофона"
+
+#: src/panel/quick_settings/Scales.vala:152
+msgid "Screen brightness"
+msgstr "Яркость экрана"
+
+#: src/panel/quick_settings/Scales.vala:232
+msgid "Sound muted, click to unmute"
+msgstr "Звук выключен, нажмите, чтобы включить"
+
+#: src/panel/quick_settings/Scales.vala:233
+#, c-format
+msgid "Volume: %s, click to mute"
+msgstr "Громкость: %s, нажмите, чтобы выключить звук"
+
+#: src/panel/quick_settings/Scales.vala:238
+#, c-format
+msgid "Microphone: %s"
+msgstr "Микрофон: %s"
+
+#: src/panel/quick_settings/Scales.vala:240
+msgid "Microphone muted, click to unmute"
+msgstr "Микрофон выключен, нажмите, чтобы включить"
+
+#: src/panel/quick_settings/Scales.vala:241
+#, c-format
+msgid "Microphone: %s, click to mute"
+msgstr "Микрофон: %s, нажмите, чтобы выключить"
+
+#: src/panel/quick_settings/Scales.vala:246
+#, c-format
+msgid "Screen brightness: %d%%"
+msgstr "Яркость экрана: %d%%"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:36
+#: src/panel/quick_settings/modules/BluetoothButton.vala:39
+msgid "Bluetooth"
+msgstr "Bluetooth"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:39
+#: src/panel/quick_settings/modules/BluetoothButton.vala:124
+#: src/panel/quick_settings/modules/BluetoothButton.vala:133
+#: src/panel/quick_settings/modules/DndButton.vala:9
+#: src/panel/quick_settings/modules/DndButton.vala:34
+msgid "Off"
+msgstr "Выключено"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:51
+msgid "Search for devices"
+msgstr "Искать устройства"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:72
+msgid "My Devices"
+msgstr "Мои устройства"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:79
+msgid "Search"
+msgstr "Поиск"
+
+#. Оптимистичный UI: BlueZ ответит своим PropertiesChanged, и
+#. update_bluetooth_status() приведёт вид к реальному состоянию.
+#: src/panel/quick_settings/modules/BluetoothButton.vala:124
+#: src/panel/quick_settings/modules/BluetoothButton.vala:143
+#: src/panel/quick_settings/modules/EthernetButton.vala:232
+msgid "Ready"
+msgstr "Готово"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:147
+#: src/panel/quick_settings/modules/BluetoothButton.vala:272
+#: src/panel/quick_settings/modules/EthernetButton.vala:180
+#: src/panel/quick_settings/modules/EthernetButton.vala:232
+#: src/panel/quick_settings/modules/WifiButton.vala:233
+msgid "Connected"
+msgstr "Подключено"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:211
+msgid "Unknown Device"
+msgstr "Неизвестное устройство"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:223
+msgid "No paired devices"
+msgstr "Нет сопряжённых устройств"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:230
+msgid "Searching for devices..."
+msgstr "Поиск устройств…"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:230
+msgid "No devices found"
+msgstr "Устройства не найдены"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:263
+msgid "Disconnecting..."
+msgstr "Отключение…"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:263
+#: src/panel/quick_settings/modules/EthernetButton.vala:188
+#: src/panel/quick_settings/modules/WifiButton.vala:180
+#: src/panel/quick_settings/modules/WifiButton.vala:229
+msgid "Connecting..."
+msgstr "Подключение…"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:272
+#: src/panel/quick_settings/modules/EthernetButton.vala:17
+#: src/panel/quick_settings/modules/EthernetButton.vala:193
+msgid "Disconnected"
+msgstr "Не подключено"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:280
+#, c-format
+msgid "Disconnect %s"
+msgstr "Отключить %s"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:280
+#, c-format
+msgid "Connect %s"
+msgstr "Подключить %s"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:299
+#: src/panel/quick_settings/modules/BluetoothButton.vala:300
+msgid "Unpair device"
+msgstr "Разорвать сопряжение"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:325
+msgid "Pairing..."
+msgstr "Сопряжение…"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:325
+msgid "Pair"
+msgstr "Сопрячь"
+
+#: src/panel/quick_settings/modules/BluetoothButton.vala:342
+#, c-format
+msgid "Pair %s"
+msgstr "Сопрячь %s"
+
+#. Инициализируем базовый GridButton без всплывающего меню (reveal_widget = null)
+#: src/panel/quick_settings/modules/DndButton.vala:9
+msgid "Do Not Disturb"
+msgstr "Не беспокоить"
+
+#: src/panel/quick_settings/modules/DndButton.vala:31
+msgid "On"
+msgstr "Включено"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:14
+msgid "Wired Network"
+msgstr "Проводная сеть"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:17
+msgid "Ethernet"
+msgstr "Ethernet"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:154
+msgid "Unavailable"
+msgstr "Недоступно"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:161
+msgid "Disabled"
+msgstr "Отключено"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:171
+msgid "Unplugged"
+msgstr "Кабель не подключён"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:232
+msgid "No Cable"
+msgstr "Нет кабеля"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:246
+#, c-format
+msgid "Speed: %u Mb/s"
+msgstr "Скорость: %u Мбит/с"
+
+#: src/panel/quick_settings/modules/EthernetButton.vala:254
+#, c-format
+msgid "MAC: %s"
+msgstr "MAC: %s"
+
+#: src/panel/quick_settings/modules/WifiButton.vala:42
+msgid "Wi-Fi Networks"
+msgstr "Сети Wi-Fi"
+
+#: src/panel/quick_settings/modules/WifiButton.vala:45
+msgid "Wi-Fi"
+msgstr "Wi-Fi"
+
+#: src/panel/quick_settings/modules/WifiButton.vala:45
+#: src/panel/quick_settings/modules/WifiButton.vala:175
+#: src/panel/quick_settings/modules/WifiButton.vala:198
+#: src/panel/quick_settings/modules/WifiButton.vala:203
+#: src/panel/quick_settings/modules/WifiButton.vala:218
+msgid "Offline"
+msgstr "Не подключено"
+
+#: src/panel/quick_settings/modules/WifiButton.vala:51
+msgid "Failed to connect to network"
+msgstr "Не удалось подключиться к сети"
+
+#: src/panel/quick_settings/modules/WifiButton.vala:72
+#: src/panel/quick_settings/modules/WifiButton.vala:73
+msgid "Search for networks"
+msgstr "Искать сети"
+
+#: src/panel/quick_settings/modules/header/BatteryMenu.vala:17
+msgid "Battery Status"
+msgstr "Состояние батареи"
+
+#. У полосы нет подписи, скринридер иначе озвучит только проценты.
+#: src/panel/quick_settings/modules/header/BatteryMenu.vala:27
+msgid "Battery charge"
+msgstr "Заряд батареи"
+
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:16
+msgid "Mixer"
+msgstr "Микшер"
+
+#. Кнопка — только иконка, без метки скринридер не скажет, что это.
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:189
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:190
+msgid "Mute or unmute"
+msgstr "Включить или выключить звук"
+
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:240
+msgid "Active Audio Stream"
+msgstr "Активный аудиопоток"
+
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:395
+msgid "Main active device"
+msgstr "Основное активное устройство"
+
+#: src/panel/quick_settings/modules/header/MixerMenu.vala:398
+msgid "Click to set as main device"
+msgstr "Сделать основным устройством"
+
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:23
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:40
+msgid "Power Off"
+msgstr "Выключение"
+
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:26
+msgid "Suspend"
+msgstr "Сон"
+
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:33
+msgid "Restart"
+msgstr "Перезагрузка"
+
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:47
+msgid "Log Out"
+msgstr "Выйти из сессии"
+
+#. title сюда приходит уже переведённым, подставляем его в шаблон.
+#: src/panel/quick_settings/modules/header/PowerMenu.vala:127
+#, c-format
+msgid "Confirm %s"
+msgstr "Подтвердить: %s"
+
+#: src/panel/quick_settings/modules/header/UptimeWidget.vala:30
+msgid "Uptime is 0m"
+msgstr "Время работы: 0 мин"
+
+#: src/panel/quick_settings/modules/header/UptimeWidget.vala:43
+#, c-format
+msgid "Uptime is %ldd %ldh %ldm"
+msgstr "Время работы: %ld д %ld ч %ld мин"
+
+#: src/panel/quick_settings/modules/header/UptimeWidget.vala:45
+#, c-format
+msgid "Uptime is %ldh %ldm"
+msgstr "Время работы: %ld ч %ld мин"
+
+#: src/panel/quick_settings/modules/header/UptimeWidget.vala:47
+#, c-format
+msgid "Uptime is %ldm"
+msgstr "Время работы: %ld мин"
+
+#: src/services/NetworkManagerService.vala:125
+#: src/services/NetworkManagerService.vala:133
+msgid "unknown network"
+msgstr "неизвестная сеть"
+
+#: src/services/PowerServices.vala:199
+msgid "Charging"
+msgstr "Заряжается"
+
+#: src/services/PowerServices.vala:200
+msgid "Discharging"
+msgstr "Разряжается"
+
+#: src/services/PowerServices.vala:201
+msgid "Fully Charged"
+msgstr "Заряжена полностью"
+
+#: src/services/PowerServices.vala:202
+msgid "On AC"
+msgstr "От сети"
+
+#. Целые фразы, а не склейка из чисел и суффикса: в русском
+#. склейка давала бы неверные падежи.
+#: src/services/PowerServices.vala:226
+#, c-format
+msgid "%lld h %lld min until empty"
+msgstr "%lld ч %lld мин до разряда"
+
+#: src/services/PowerServices.vala:227
+#, c-format
+msgid "%lld min until empty"
+msgstr "%lld мин до разряда"
+
+#: src/services/PowerServices.vala:230
+#, c-format
+msgid "%lld h %lld min until full"
+msgstr "%lld ч %lld мин до заряда"
+
+#: src/services/PowerServices.vala:231
+#, c-format
+msgid "%lld min until full"
+msgstr "%lld мин до заряда"
+
+#. Проценты для подсказок. Слайдеры и иконки живут в разных файлах,
+#. а формат один: «80%» или «muted».
+#: src/services/WirePlumberService.vala:651
+msgid "muted"
+msgstr "выключен"
