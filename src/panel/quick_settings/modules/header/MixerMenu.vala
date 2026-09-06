@@ -1,4 +1,3 @@
-// Путь: src/panel/quick_settings/modules/header/MixerMenu.vala
 using Gtk;
 using GLib;
 using WayShell.Services;
@@ -14,22 +13,7 @@ namespace WayShell.QS {
             Object (orientation: Orientation.VERTICAL, spacing: 0);
             options_map = new HashTable<uint32, MixerMenuOption> (direct_hash, direct_equal);
 
-            var provider = new CssProvider ();
-            provider.load_from_data ("""
-                .stream-active-dot {
-                    color: #b19cd9;
-                }
-                .active-icon-activated {
-                    color: #26a269;
-                }
-                .dim-label {
-                    opacity: 0.75;
-                    font-size: 13px;
-                }
-            """.data);
-            StyleContext.add_provider_for_display (Gdk.Display.get_default (), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
-
-            menu = new MenuWidget ("Mixer", "audio-speakers-symbolic", true);
+            menu = new MenuWidget (_("Mixer"), "audio-speakers-symbolic", true);
             menu.set_size_request (-1, 350);
             this.append (menu);
 
@@ -201,6 +185,9 @@ namespace WayShell.QS {
             mute_btn.add_css_class ("flat");
             mute_btn.valign = Align.CENTER;
             mute_btn.icon_name = get_mute_btn_icon ();
+            // Кнопка — только иконка, без метки скринридер не скажет, что это.
+            mute_btn.set_tooltip_text (_("Mute or unmute"));
+            mute_btn.update_property (Gtk.AccessibleProperty.LABEL, _("Mute or unmute"), -1);
             mute_btn.clicked.connect (() => {
                 var wps = WirePlumberService.get_global ();
                 if (wps != null) {
@@ -250,7 +237,7 @@ namespace WayShell.QS {
                 default_dot.add_css_class ("stream-active-dot");
                 
                 default_btn.set_child (default_dot);
-                default_btn.set_tooltip_text ("Active Audio Stream");
+                default_btn.set_tooltip_text (_("Active Audio Stream"));
                 main_row.append (default_btn);
             }
 
@@ -349,8 +336,9 @@ namespace WayShell.QS {
 
                         codec_dropdown.notify["selected"].connect (() => {
                             uint selected_idx = codec_dropdown.get_selected ();
-                            if (selected_idx < codec_info.profile_names.length) {
-                                wps.set_bluetooth_codec (codec_info.card_name, codec_info.profile_names[selected_idx]);
+                            if (selected_idx < codec_info.profile_indices.length) {
+                                wps.set_bluetooth_codec (codec_info.card_name,
+                                                         codec_info.profile_indices[selected_idx]);
                             }
                         });
                         codec_box.append (codec_dropdown);
@@ -404,10 +392,10 @@ namespace WayShell.QS {
 
             if (is_default_device ()) {
                 default_dot.add_css_class ("active-icon-activated");
-                default_dot.set_tooltip_text ("Main active device");
+                default_dot.set_tooltip_text (_("Main active device"));
             } else {
                 default_dot.remove_css_class ("active-icon-activated");
-                default_dot.set_tooltip_text ("Click to set as main device");
+                default_dot.set_tooltip_text (_("Click to set as main device"));
             }
         }
 

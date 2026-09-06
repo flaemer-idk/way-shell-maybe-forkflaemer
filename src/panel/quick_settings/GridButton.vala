@@ -90,6 +90,14 @@ namespace WayShell.QS {
                 reveal_button.add_css_class("quick-settings-grid-button-reveal-hidden");
                 reveal_button.add_css_class("quick-settings-grid-button-reveal-visible");
                 reveal_button.halign = Align.END;
+                // Стрелка без метки для скринридера — безымянная кнопка; берём имя
+                // из заголовка самой кнопки.
+                if (title_text != null) {
+                    reveal_button.tooltip_text = _("%s: more").printf(title_text);
+                    reveal_button.update_property(Gtk.AccessibleProperty.LABEL,
+                                                 _("%s: more").printf(title_text), -1);
+                }
+                reveal_button.update_state(Gtk.AccessibleState.EXPANDED, false, -1);
 
                 overlay.add_overlay(reveal_button);
 
@@ -104,6 +112,7 @@ namespace WayShell.QS {
                     var qs = Drawer.get_global();
                     if (revealer.get_reveal_child()) {
                         revealer.set_reveal_child(false);
+                        reveal_button.update_state(Gtk.AccessibleState.EXPANDED, false, -1);
                         qs.shrink();
                         qs.set_focused(false);
                         reveal_changed(false);
@@ -111,6 +120,7 @@ namespace WayShell.QS {
                         cluster.will_reveal(this);
                         qs.set_focused(true);
                         revealer.set_reveal_child(true);
+                        reveal_button.update_state(Gtk.AccessibleState.EXPANDED, true, -1);
                         reveal_changed(true);
                     }
                 });
@@ -125,6 +135,11 @@ namespace WayShell.QS {
                 toggle.add_css_class("off");
                 if (reveal_button != null) reveal_button.add_css_class("off");
             }
+            // Состояние выражалось только CSS-классом — для скринридера кнопка
+            // выглядела одинаково во включённом и выключенном виде.
+            toggle.update_state(Gtk.AccessibleState.PRESSED,
+                                toggled ? Gtk.AccessibleTristate.TRUE : Gtk.AccessibleTristate.FALSE,
+                                -1);
         }
     }
 }

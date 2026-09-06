@@ -32,9 +32,15 @@
 @define-color text-general #ffffff;
 @define-color success #26a269;
 @define-color failure #ed333b;
+@define-color stream-active #b19cd9;
 
 .active-icon-activated {
   color: @success;
+}
+
+/* Маркер активного потока в микшере (было инлайн-CSS в MixerMenu.vala) */
+.stream-active-dot {
+  color: @stream-active;
 }
 
 /*
@@ -76,32 +82,12 @@ row:hover {
 }
 
 /*
- * Underlay
- */
-.underlay {
-  background-color: rgba(0, 0, 0, 0.0); /* Полностью прозрачно, но перехватывает клики */
-}
-.underlay button {
-    background-color: transparent;
-    border: none;
-    box-shadow: none;
-}
-.underlay:hover,
-.underlay:active {
-  background-color: @underlay-background;
-}
-
-/*
  * Panel
  */
 #panel {
   background-color: @panel-background;
   font-weight: normal;
   transition-duration: 250ms;
-}
-
-#panel.activities-visible {
-  background-color: @base-panel-background;
 }
 
 #panel .panel-button label {
@@ -137,10 +123,6 @@ row:hover {
   margin-right: 6px;
 }
 
-#panel #workspaces-bar {
-  border-radius: 5px;
-}
-
 #panel scrollbar {
   opacity: 100;
   margin-bottom: -12px;
@@ -155,27 +137,6 @@ row:hover {
 
 #panel scrolledwindow undershoot.right {
   background: linear-gradient(to left, @scrolled-window-undershoot, transparent);
-}
-
-#panel #workspaces-bar-list {
-  font-weight: normal;
-  font-size: 12px;
-  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.3), inset 0px 0px 0px rgba(255, 255, 255, 0.04);
-}
-
-#panel #workspaces-bar-list .panel-button {
-  margin: 2px;
-  border-radius: 5px;
-}
-
-#panel #workspaces-bar-list .panel-button-toggled {
-  background: linear-gradient(to bottom, @workspace-button-start-gradient, @workspace-button-end-gradient);
-  animation: pulse 1s ease-in;
-}
-
-#panel #workspaces-bar-list .panel-button-urgent {
-  color: @workspace-bar-urgent;
-  animation: pulse 1s ease-in;
 }
 
 #panel .panel-clock-notif {
@@ -197,7 +158,7 @@ row:hover {
 }
 
 /*
- * Panel Indicator Bar
+ * Panel Indicator Bar (системный трей)
  */
 
 #panel #panel-indicator-bar-widget button {
@@ -206,6 +167,10 @@ row:hover {
 }
 #panel #panel-indicator-bar-widget button:hover {
 	background: @panel-button-hover;
+}
+/* Значок просит внимания: приложение выставило Status = NeedsAttention. */
+#panel #panel-indicator-bar-widget button.needs-attention image {
+	color: @workspace-bar-urgent;
 }
 
 /*
@@ -385,7 +350,7 @@ label.day-number.today:focus {
   margin-top: 0px;
 }
 
-#notification-list .notifications-list-controls {
+#notifications-list .notifications-list-controls {
   font-weight: bold;
   font-size: 8px;
 }
@@ -395,8 +360,8 @@ label.day-number.today:focus {
   color: @panel-button-color;
 }
 
-#notification-osd .notification-widget-header,
-#notification-list .notification-widget-header {
+#notifications-osd .notification-widget-header,
+#notifications-list .notification-widget-header {
 	margin-left: 2px;
     margin-right: 4px;
     margin-top: 2px;
@@ -641,6 +606,14 @@ label.day-number.today:focus {
 #quick-settings #quick-settings-scales button:hover {
     margin: 2px;
     background-color: @panel-button-hover;
+}
+
+/* Яркость: иконка не кнопка (нажимать нечего — у подсветки нет
+   состояния «выключено»), поэтому отступы задаются здесь, а не
+   правилом для button выше. */
+#quick-settings #quick-settings-scales #brightness-container image {
+    margin-left: 8px;
+    margin-right: 8px;
 }
 
 #quick-settings #quick-settings-grid {
@@ -944,191 +917,11 @@ label.day-number.today:focus {
   background-color: shade(@panel-button-active, .5);
 }
 
-
-/*
- * Activities Widget
- */
-#activities {
-  background: @transparent;
-}
-
-#activities button {
-  background: @base-panel-background;
-}
-
-#activities #activities-container {
-  background: @base-panel-background;
-  color: @text-general;
-}
-
-#activities #activities-container #search-container #search-entry {
-    border-radius: 99px;
-    color: @text-general;
-    margin: 40px;
-    margin-bottom: 80px;
-    margin-top: 80px;
-}
-
-#activities .activities-app-widget button:hover {
-    background: @panel-button-hover;
-    border-radius: 40px;
-}
-
-#activities .activities-workspace-overlay label {
-    font-weight: bold;
-    color: @text-general;
-}
-
-#activities .activities-workspace-button {
-    background: @top-panel-background;
-    padding: 12px;
-	margin: 4px;
-}
-
-#activities .activities-workspace-button:hover {
-    background: @panel-button-hover;
-}
-
-/*
- * Dialog Overlay
- */
-#dialog-overlay {
-    background: @underlay-background-heavy;
-}
-
-#dialog-overlay #dialog-overlay-container {
-    background: @base-panel-background;
-    color: @text-general;
-    border-radius: 10px;
-}
-
-#dialog-overlay #dialog-overlay-container .dialog-overlay-heading {
-    font-size: 24px;
-    font-weight: bold;
-    padding: 14px;
-    margin: 4px;
-    margin-top: 12px;
-}
-
-#dialog-overlay #dialog-overlay-container .dialog-overlay-body {
-    font-size: 16px;
-    padding: 8px;
-    margin: 4px;
-}
-
-#dialog-overlay #dialog-overlay-container button:hover {
-    background: @panel-button-hover;
-}
-
-#dialog-overlay #dialog-overlay-container .dialog-overlay-confirm, .dialog-overlay-cancel {
-    padding: 0px;
-    margin-top: 14px;
-    border-radius: 0px;
-    background: @transparent;
-    border-top: 1px solid @top-panel-background;
-}
-
-#dialog-overlay #dialog-overlay-container .dialog-overlay-cancel {
-    border-right: 1px solid @top-panel-background;
-}
-#dialog-overlay #dialog-overlay-container .dialog-overlay-confirm {
-	color: @success;
-}
-
-/*
- * App Switcher
- */
-
-#app-switcher {
-    color: @text-general;
-    background: @base-panel-background;
-}
-
-#app-switcher #app-switcher-list {
-    margin: 10px;
-}
-
-#app-switcher, .app-switcher-app-widget-instances-win {
-    border-radius: 20px;
-}
-
-#app-switcher .app-switcher-app-widget-button {
-    background: @base-panel-background;
-    border-radius: 20px;
-    padding: 6px;
-    margin: 6px;
-}
-
-#app-switcher .app-switcher-app-widget-button.selected {
-    background: @panel-button-hover;
-}
-
-#app-switcher .app-switcher-app-widget-button.selected:hover {
-    background: @panel-button-hover2;
-}
-
-#app-switcher button:hover {
-    background: @top-panel-background;
-}
-
-#app-switcher .app-switcher-app-widget label {
-    margin: 2px;
-    padding: 2px;
-    font-size: 12px;
-}
-
-/*
- * Switcher
- */
-
-#switcher {
-    color: @text-general;
-    background: @base-panel-background;
-    font-size: 18px;
-    border-radius: 20px;
-}
-
-#switcher .switcher-entry {
-    color: @text-general;
-    padding: 4px;
-    margin: 4px;
-}
-
-#switcher #search-entry {
-    margin: 20px;
-    margin-bottom: 5px;
-    padding: 8px;
-    border-radius: 10px;
-}
-
-#switcher .no_list #search-entry  {
-    margin: 20px;
-}
-
-#switcher #list {
-    background: @base-panel-background;
-    margin: 20px;
-    border-radius: 20px;
-	margin-bottom: 40px;
-}
-
-#switcher row:selected {
-   border-top-left-radius: 20px;
-   border-top-right-radius: 20px;
- }
-
-#switcher row:selected {
-   border-bottom-left-radius: 20px;
-   border-bottom-right-radius: 20px;
-}
+/* Иконка живёт внутри StatusBar, отступы между индикаторами задаёт spacing
+   самого бокса — свои margin здесь ломали бы ровный ряд.
+   Цвет как у .stream-active-dot в MixerMenu: это такой же индикатор
+   «устройство сейчас используется». */
 .webcam-active {
     color: @success;
-    margin-left: 8px;
-    margin-right: 8px;
-}
-#switcher row {
-   border-top-left-radius: 20px;
-   border-top-right-radius: 20px;
-   border-bottom-left-radius: 20px;
-   border-bottom-right-radius: 20px;
+    -gtk-icon-size: 10px;
 }

@@ -20,31 +20,31 @@ namespace WayShell.QS {
             Object(orientation: Orientation.VERTICAL, spacing: 0);
             rows = new GenericArray<PowerButtonRow>();
 
-            menu = new MenuWidget("Power Off", "system-shutdown-symbolic", false);
+            menu = new MenuWidget(_("Power Off"), "system-shutdown-symbolic", false);
             this.append(menu);
 
-            var suspend_row = new PowerButtonRow(this, "Suspend", () => {
+            var suspend_row = new PowerButtonRow(this, _("Suspend"), () => {
                 Drawer.get_global().set_hidden();
                 do_suspend();
             });
             menu.options.append(suspend_row);
             rows.add(suspend_row);
 
-            var restart_row = new PowerButtonRow(this, "Restart", () => {
+            var restart_row = new PowerButtonRow(this, _("Restart"), () => {
                 Drawer.get_global().set_hidden();
                 do_reboot();
             });
             menu.options.append(restart_row);
             rows.add(restart_row);
 
-            var poweroff_row = new PowerButtonRow(this, "Power Off", () => {
+            var poweroff_row = new PowerButtonRow(this, _("Power Off"), () => {
                 Drawer.get_global().set_hidden();
                 do_power_off();
             });
             menu.options.append(poweroff_row);
             rows.add(poweroff_row);
 
-            var logout_row = new PowerButtonRow(this, "Log Out", () => {
+            var logout_row = new PowerButtonRow(this, _("Log Out"), () => {
                 Drawer.get_global().set_hidden();
                 do_logout();
             });
@@ -123,7 +123,8 @@ namespace WayShell.QS {
             revealer.transition_duration = 250;
             revealer.hexpand = true;
 
-            confirm_button = new Button.with_label("Confirm " + title);
+            // title сюда приходит уже переведённым, подставляем его в шаблон.
+            confirm_button = new Button.with_label(_("Confirm %s").printf(title));
             confirm_button.add_css_class("confirm-button");
             confirm_button.hexpand = true;
             confirm_button.clicked.connect((owned) action);

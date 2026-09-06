@@ -25,10 +25,14 @@ namespace WayShell.Panel {
             
             btn_back = new Button();
             btn_back.set_child(new Image.from_icon_name("pan-start-symbolic"));
+            btn_back.tooltip_text = _("Previous month");
+            btn_back.update_property(Gtk.AccessibleProperty.LABEL, _("Previous month"), -1);
             btn_back.clicked.connect(on_back_clicked);
 
             btn_forward = new Button();
             btn_forward.set_child(new Image.from_icon_name("pan-end-symbolic"));
+            btn_forward.tooltip_text = _("Next month");
+            btn_forward.update_property(Gtk.AccessibleProperty.LABEL, _("Next month"), -1);
             btn_forward.clicked.connect(on_forward_clicked);
 
             date_label = new Label(now.format("%B %Y"));
@@ -49,6 +53,8 @@ namespace WayShell.Panel {
             today_btn = new Button();
             today_btn.name = "calendar-today";
             today_btn.hexpand = true;
+            today_btn.tooltip_text = _("Go to today");
+            today_btn.update_property(Gtk.AccessibleProperty.LABEL, _("Go to today"), -1);
             today_btn.clicked.connect(on_today_clicked);
 
             today_row = new Adw.ActionRow();

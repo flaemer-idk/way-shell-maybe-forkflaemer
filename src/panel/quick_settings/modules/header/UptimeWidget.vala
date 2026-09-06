@@ -27,6 +27,7 @@ namespace WayShell.QS {
         }
 
         public void update_uptime() {
+            string text = _("Uptime is 0m");
             try {
                 string content;
                 FileUtils.get_contents("/proc/uptime", out content);
@@ -39,18 +40,20 @@ namespace WayShell.QS {
                     int64 minutes = (sec % 3600) / 60;
 
                     if (days > 0) {
-                        label.set_text("Uptime is %ldd %ldh %ldm".printf((long) days, (long) hours, (long) minutes));
+                        text = _("Uptime is %ldd %ldh %ldm").printf((long) days, (long) hours, (long) minutes);
                     } else if (hours > 0) {
-                        label.set_text("Uptime is %ldh %ldm".printf((long) hours, (long) minutes));
+                        text = _("Uptime is %ldh %ldm").printf((long) hours, (long) minutes);
                     } else {
-                        label.set_text("Uptime is %ldm".printf((long) minutes));
+                        text = _("Uptime is %ldm").printf((long) minutes);
                     }
-                    return;
                 }
             } catch (Error e) {
                 warning("UptimeWidget: Failed to read /proc/uptime: %s", e.message);
             }
-            label.set_text("Uptime is 0m");
+            label.set_text(text);
+            // Бейдж — иконка плюс цифры; без явной метки скринридер читает
+            // только содержимое label вне контекста.
+            this.update_property(Gtk.AccessibleProperty.LABEL, text, -1);
         }
     }
 }

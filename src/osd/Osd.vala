@@ -23,10 +23,6 @@ namespace WayShell.Osd {
         private Scale? keyboard_brightness_scale = null;
         private Image? keyboard_brightness_icon = null;
 
-        private Box media_osd;
-        private Image media_icon;
-        private Label media_label;
-
         private uint timeout_id = 0;
 
         // Поля для отслеживания реального изменения состояния аудио
@@ -53,9 +49,11 @@ namespace WayShell.Osd {
 
             win = new Gtk.Window();
             win.set_size_request(340, 64);
+            // Блокируем уничтожение окна: раньше здесь был reinitialize(),
+            // который пересобирал всё заново и плодил новые подписки.
             win.close_request.connect(() => {
-                reinitialize();
-                return false;
+                win.set_visible(false);
+                return true;
             });
 
             Gtk4LayerShell.init_for_window(win);
@@ -124,23 +122,6 @@ namespace WayShell.Osd {
                 overlay.add_overlay(keyboard_brightness_osd);
             }
 
-            // --- Музыкальный OSD ---
-            media_osd = new Box(Orientation.HORIZONTAL, 10);
-            media_osd.name = "osd-container";
-            media_icon = new Image.from_icon_name("audio-x-generic-symbolic");
-            media_icon.pixel_size = 32;
-            media_label = new Label("");
-            media_label.max_width_chars = 35;
-            media_label.ellipsize = Pango.EllipsizeMode.END;
-            media_osd.append(media_icon);
-            media_osd.append(media_label);
-            overlay.add_overlay(media_osd);
-
-            var mps = MediaPlayerService.get_global();
-            if (mps != null) {
-                mps.media_player_changed.connect(on_osd_media_changed);
-            }
-
             win.set_child(overlay);
         }
 
@@ -174,7 +155,6 @@ namespace WayShell.Osd {
             if (brightness_osd != null && active_osd != brightness_osd) brightness_osd.visible = false;
             if (keyboard_brightness_osd != null && active_osd != keyboard_brightness_osd) keyboard_brightness_osd.visible = false;
             if (active_osd != volume_osd) volume_osd.visible = false;
-            if (active_osd != media_osd) media_osd.visible = false;
 
             active_osd.visible = true;
         }
@@ -187,6 +167,9 @@ namespace WayShell.Osd {
             show_osd(active_osd);
 
             if (!win.get_visible()) {
+                // Окно одно на весь процесс; set_monitor пересоздаёт surface,
+                // поэтому трогаем только пока оно скрыто.
+                WayShell.Panel.Panel.place_on_active_monitor(win);
                 win.visible = true;
                 var timed_anim = (Adw.TimedAnimation)animation;
                 timed_anim.set_reverse(false);
@@ -244,36 +227,9 @@ namespace WayShell.Osd {
             trigger_osd(keyboard_brightness_osd);
         }
 
-        private void on_osd_media_changed(MediaPlayer player) {
-            string artist = player.artist ?? "Unknown";
-            string title = player.title ?? "Unknown";
-            media_label.set_text("%s - %s".printf(artist, title));
-
-            trigger_osd(media_osd);
-        }
-
         public void set_hidden() {
             reset_timeout();
             win.visible = false;
-        }
-
-        public void reinitialize() {
-            var wp = WirePlumberService.get_global();
-            if (wp != null) {
-                wp.default_sink_volume_changed.disconnect(on_default_sink_changed);
-            }
-            var bs = BrightnessService.get_global();
-            if (bs != null) {
-                bs.brightness_changed.disconnect(on_brightness_changed);
-                bs.keyboard_brightness_changed.disconnect(on_keyboard_brightness_changed);
-            }
-            var mps = MediaPlayerService.get_global();
-            if (mps != null) {
-                mps.media_player_changed.disconnect(on_osd_media_changed);
-            }
-
-            initialized = false;
-            init_layout();
         }
     }
 }

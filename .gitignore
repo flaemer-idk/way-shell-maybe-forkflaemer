@@ -1,25 +1,30 @@
-**.*o
-compile_commands.json
-way-shell
-.gdb_history
-way-sh/way-sh
-gresources.c
-gresources.h
-/.cache/
-# Игнорируем временный кэш компиляции и сборки
+# Кэши и артефакты сборки
 /build/
+/Build/
+/_build/
 /.cache/
-**.*o
+# Было `**.*o` — этот шаблон прятал и po/ru.po с po/en.po, то есть переводы
+# не попадали в репозиторий.
+*.o
 
-# Игнорируем сгенерированные файлы ресурсов и утилиты
+# Сгенерированные файлы ресурсов
 gresources.c
 gresources.h
 compile_commands.json
 .gdb_history
 
-# Игнорируем старые скомпилированные бинарники в корне (если они есть)
+# Скомпилированные бинарники в корне
 way-shell
 way-sh
+
+# Скомпилированная gschema — собирается meson-ом в build/data/
+data/gschemas.compiled
+
+# Шаблон переводов — генерируется целью way-shell-pot из POTFILES.in.
+# Сами po/*.po отслеживаются.
+po/*.pot
+
+# Личное
 repomix-output.xml
 RoadMap.md
 .vscode

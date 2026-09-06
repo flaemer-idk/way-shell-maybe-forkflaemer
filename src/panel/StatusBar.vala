@@ -19,9 +19,16 @@ namespace WayShell.Panel {
             button = new Button();
             button.add_css_class("panel-button");
             button.clicked.connect(() => {
+                // Запоминаем монитор кликнутой панели, чтобы шторка открылась здесь же,
+                // а не там, куда её положит компози́тор.
+                if (panel != null) Panel.set_active_monitor(panel.get_monitor());
                 var qs = WayShell.QS.Drawer.get_global();
                 if (qs != null) qs.toggle();
             });
+            button.tooltip_text = _("Quick settings");
+            // Всё содержимое — шесть иконок без текста, так что без явной метки
+            // скринридер видит только «кнопка».
+            button.update_property(Gtk.AccessibleProperty.LABEL, _("Quick settings"), -1);
 
             box = new Box(Orientation.HORIZONTAL, 4);
 
@@ -49,8 +56,55 @@ namespace WayShell.Panel {
             box.append(power_btn);
             buttons.add(power_btn);
 
+            // Камера последней в ряду: индикатор редкий, и его появление не должно
+            // сдвигать привычные позиции остальных иконок.
+            var webcam_btn = new WebcamButton();
+            box.append(webcam_btn);
+            buttons.add(webcam_btn);
+
             button.set_child(box);
             this.append(button);
+
+            // Индикаторы появляются и исчезают по событиям сервисов, поэтому метку
+            // пересчитываем на каждое изменение видимости любого из них.
+            for (int i = 0; i < buttons.length; i++) {
+                buttons.get(i).notify["visible"].connect(update_accessible_label);
+            }
+            update_accessible_label();
+        }
+
+        // Собирает метку из тех индикаторов, что сейчас на экране.
+        private void update_accessible_label() {
+            var parts = new GenericArray<string>();
+            for (int i = 0; i < buttons.length; i++) {
+                var w = buttons.get(i);
+                if (!w.visible) continue;
+                string? name = indicator_name(w);
+                if (name != null) parts.add(name);
+            }
+
+            if (parts.length == 0) {
+                button.update_property(Gtk.AccessibleProperty.LABEL, _("Quick settings"), -1);
+                return;
+            }
+
+            var sb = new StringBuilder(_("Quick settings: "));
+            for (int i = 0; i < parts.length; i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(parts.get(i));
+            }
+            button.update_property(Gtk.AccessibleProperty.LABEL, sb.str, -1);
+        }
+
+        private string? indicator_name(Widget w) {
+            if (w is IdleInhibitorButton) return _("idle inhibited");
+            if (w is NightLightButton) return _("night light");
+            if (w is VpnButton) return _("VPN");
+            if (w is NetworkButton) return _("network");
+            if (w is SoundButton) return _("sound");
+            if (w is PowerButton) return _("battery");
+            if (w is WebcamButton) return _("webcam in use");
+            return null;
         }
 
         public void set_toggled(bool val) {
@@ -60,6 +114,28 @@ namespace WayShell.Panel {
             } else {
                 button.remove_css_class("panel-button-toggled");
             }
+        }
+    }
+
+    public class WebcamButton : Box {
+        private Image icon;
+
+        public WebcamButton() {
+            Object(orientation: Orientation.HORIZONTAL, spacing: 0);
+            // Тот же индикатор-кружок, что у активного аудиопотока в MixerMenu.
+            icon = new Image.from_icon_name("media-record-symbolic");
+            icon.add_css_class("webcam-active");
+            this.append(icon);
+
+            this.visible = false;
+            var cam = WebcamService.get_global();
+            if (cam == null || !cam.has_device) return;
+
+            this.tooltip_text = _("Webcam in use");
+            this.visible = cam.in_use;
+            cam.notify["in-use"].connect(() => {
+                this.visible = cam.in_use;
+            });
         }
     }
 
@@ -153,22 +229,32 @@ namespace WayShell.Panel {
 
             if (state == NM.State.DISCONNECTED || state == NM.State.DISCONNECTING) {
                 icon.set_from_icon_name(has_wifi ? "network-wireless-offline-symbolic" : "network-wired-offline-symbolic");
+                this.tooltip_text = _("Network: disconnected");
             } else if (state == NM.State.CONNECTING) {
                 icon.set_from_icon_name(has_wifi ? "network-wireless-acquiring-symbolic" : "network-wired-acquiring-symbolic");
+                this.tooltip_text = _("Network: connecting");
             } else if (state == NM.State.CONNECTED_GLOBAL) {
                 if (dev != null && dev.device_type == NM.DeviceType.WIFI) {
                     var wifi = (NM.DeviceWifi)dev;
                     var ap = wifi.get_active_access_point();
                     if (ap != null) {
                         icon.set_from_icon_name(NetworkManagerService.ap_strength_to_icon_name(ap.strength));
+                        // Имя сети в подсказке: без него по силе сигнала не понять,
+                        // это своя точка, телефон или чужая соседская.
+                        this.tooltip_text = _("Wi-Fi: %s (%u%%)").printf(
+                            NetworkManagerService.ap_to_ssid(ap), (uint)ap.strength);
                     }
                 } else {
                     icon.set_from_icon_name("network-wired-symbolic");
+                    string ip = NetworkManagerService.device_ip4(dev);
+                    this.tooltip_text = (ip != "")
+                        ? _("Wired: %s").printf(ip)
+                        : _("Wired: connected");
                 }
             }
         }
     }
-    
+
     public class SoundButton : Box {
         private Image speaker;
         private Image mic;
@@ -184,28 +270,42 @@ namespace WayShell.Panel {
             var wps = WirePlumberService.get_global();
             if (wps == null) return;
 
-            update_mic(wps.is_microphone_active());
             update_speaker(wps.get_default_sink());
+            update_mic(wps.get_default_source());
 
-            wps.microphone_active.connect(update_mic);
             wps.default_sink_changed.connect(update_speaker);
+            wps.default_sink_volume_changed.connect(update_speaker);
+            wps.default_source_changed.connect(update_mic);
+            // Занятость микрофона видна только по появлению/исчезновению узлов
+            // Stream/Input/Audio, а об этом сообщает mixer_changed.
+            wps.mixer_changed.connect(() => { update_mic(wps.get_default_source()); });
         }
 
-        private void update_mic(bool active) {
-            mic.visible = active;
+        // Иконка микрофона — индикатор «кем-то используется», поэтому висит на
+        // наличии потока записи, а не на mute. Раньше показывалась по !mute, то
+        // есть горела постоянно, пока микрофон просто включён.
+        private void update_mic(WirePlumberServiceNode? source) {
+            var wps = WirePlumberService.get_global();
+            bool in_use = (wps != null && wps.microphone_in_use());
+            mic.visible = in_use;
+            if (!in_use || source == null) return;
+
+            mic.set_from_icon_name(
+                WirePlumberService.map_source_vol_icon((float)source.volume, source.mute));
+            mic.tooltip_text = source.mute
+                ? _("Microphone in use, muted")
+                : _("Microphone in use: %s").printf(
+                    WirePlumberService.format_volume(source.volume, source.mute));
         }
 
         private void update_speaker(WirePlumberServiceNode? sink) {
             if (sink == null) return;
-            if (sink.mute) {
-                speaker.set_from_icon_name("audio-volume-muted-symbolic");
-            } else if (sink.volume < 0.25) {
-                speaker.set_from_icon_name("audio-volume-low-symbolic");
-            } else if (sink.volume < 0.5) {
-                speaker.set_from_icon_name("audio-volume-medium-symbolic");
-            } else {
-                speaker.set_from_icon_name("audio-volume-high-symbolic");
-            }
+            speaker.set_from_icon_name(
+                WirePlumberService.map_sink_vol_icon((float)sink.volume, sink.mute));
+            speaker.tooltip_text = sink.mute
+                ? _("Sound: muted")
+                : _("Volume: %s").printf(
+                    WirePlumberService.format_volume(sink.volume, sink.mute));
         }
     }
 
@@ -217,26 +317,27 @@ namespace WayShell.Panel {
         public PowerButton() {
             Object(orientation: Orientation.HORIZONTAL, spacing: 4);
             this.visible = false;
-            
-            var upower = UPowerService.get_global();
-            if (upower == null) return;
 
-            power_dev = upower.get_primary_device();
-            if (power_dev == null || !power_dev.present) {
-                this.visible = false;
-                return;
-            }
-
-            icon = new Image.from_icon_name(UPowerService.device_map_icon_name(power_dev));
+            icon = new Image.from_icon_name("battery-missing-symbolic");
             label = new Label("");
-            
+
             this.append(icon);
             this.append(label);
 
+            var upower = UPowerService.get_global();
+            if (upower == null) return;
+
+            // Виджеты строятся всегда, а видимость правит present. Раньше
+            // конструктор выходил до append(), если батарею не нашли сразу, и
+            // подписки не навешивались — UPower мог сообщить о батарее позже,
+            // но обновлять было уже нечего.
+            power_dev = upower.get_primary_device();
+            if (power_dev == null) return;
+
             update_battery_status();
-            power_dev.notify["percentage"].connect(update_battery_status);
-            power_dev.notify["state"].connect(update_battery_status);
-            power_dev.notify["present"].connect(update_battery_status);
+            // Одна подписка вместо пяти notify[...]: UpDevice сам эмитит changed()
+            // один раз на пакет изменений.
+            power_dev.changed.connect(update_battery_status);
         }
 
         private void update_battery_status() {
@@ -245,9 +346,9 @@ namespace WayShell.Panel {
                 return;
             }
             this.visible = true;
-            double percent = power_dev.percentage;
-            label.set_text("%.0f%%".printf(percent));
-            icon.set_from_icon_name(UPowerService.device_map_icon_name(power_dev));
+            label.set_text(power_dev.get_percent_text());
+            icon.set_from_icon_name(power_dev.get_icon_name());
+            this.tooltip_text = _("Battery: %s").printf(power_dev.get_summary_text());
         }
     }
 }

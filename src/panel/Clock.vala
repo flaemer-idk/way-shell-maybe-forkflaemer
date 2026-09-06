@@ -34,12 +34,18 @@ namespace WayShell.Panel {
             button = new Button();
             button.add_css_class("panel-button");
             button.clicked.connect(on_clicked);
+            // Для скринридера это была безымянная кнопка с меняющейся цифрой внутри.
+            button.tooltip_text = _("Date and time: open notification center");
+            button.update_property(Gtk.AccessibleProperty.LABEL, _("Notification center"), -1);
 
             var button_content = new Box(Orientation.HORIZONTAL, 6);
             label = new Label(date_str);
             notif_dot = new Image.from_icon_name("preferences-system-notifications-symbolic");
             notif_dot.add_css_class("panel-clock-notif");
             notif_dot.visible = false;
+            // Индикатор-точка несёт смысл только визуально; текстовое состояние
+            // скринридер получает из метки кнопки, которая обновляется в update_notif_label().
+            notif_dot.update_state(Gtk.AccessibleState.HIDDEN, true, -1);
 
             button_content.append(label);
             button_content.append(notif_dot);
@@ -61,6 +67,7 @@ namespace WayShell.Panel {
         }
 
         private void on_clicked() {
+            if (panel != null) Panel.set_active_monitor(panel.get_monitor());
             var mt = MessageTray.get_global();
             if (mt != null) mt.toggle();
         }
@@ -68,6 +75,7 @@ namespace WayShell.Panel {
         private void on_notifications_changed(NotificationsService ns, GenericArray<WayShell.Services.Notification> notifications) {
             if (dnd) return;
             notif_dot.visible = (notifications.length > 0);
+            update_accessible_label(notifications.length);
         }
 
         private void on_dnd_changed() {
@@ -79,11 +87,27 @@ namespace WayShell.Panel {
             if (dnd) {
                 notif_dot.set_from_icon_name("notifications-disabled-symbolic");
                 notif_dot.visible = true;
+                update_accessible_label(0);
             } else {
                 notif_dot.set_from_icon_name("preferences-system-notifications-symbolic");
                 var ns = NotificationsService.get_global();
                 on_notifications_changed(ns, ns.get_notifications());
             }
+        }
+
+        // Состояние уведомлений выражено только иконкой, так что для скринридера
+        // дублируем его текстом в метке кнопки.
+        private void update_accessible_label(uint count) {
+            string state;
+            if (dnd) {
+                state = _("do not disturb");
+            } else if (count > 0) {
+                state = _("%u notifications").printf(count);
+            } else {
+                state = _("no notifications");
+            }
+            button.update_property(Gtk.AccessibleProperty.LABEL,
+                                   _("Notification center, %s").printf(state), -1);
         }
 
         public void set_toggled(bool val) {

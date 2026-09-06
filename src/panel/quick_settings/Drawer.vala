@@ -2,6 +2,12 @@ using Gtk;
 using Adw;
 
 namespace WayShell.QS {
+    // Кто именно раскрывает подменю. Нужно, чтобы шапка и сетка гасили друг
+    // друга и на экране не оказывалось два раскрытых подменю сразу.
+    public enum SubmenuOwner {
+        HEADER, GRID
+    }
+
     public class Drawer : GLib.Object {
         private static Drawer? global = null;
 
@@ -12,6 +18,9 @@ namespace WayShell.QS {
         public signal void will_show();
         public signal void visible();
         public signal void hidden();
+        // Эмитится перед раскрытием любого подменю. Слушатели закрывают своё,
+        // если владелец не они.
+        public signal void submenu_will_open(SubmenuOwner owner);
 
         public static Drawer get_global() {
             if (global == null) {
@@ -25,12 +34,13 @@ namespace WayShell.QS {
             init_layout();
         }
 
-private void init_layout() {
+        private void init_layout() {
             win = new Gtk.Window();
-            
+            // Блокируем уничтожение вместо пересборки layout — иначе каждое
+            // закрытие создавало новое окно и новый набор подписок на сервисы.
             win.close_request.connect(() => {
-                reinitialize();
-                return false;
+                set_hidden();
+                return true;
             });
 
             Gtk4LayerShell.init_for_window(win);
@@ -65,6 +75,9 @@ private void init_layout() {
             if (qs_grid != null) {
                 qs_grid.refresh_grid_layout();
             }
+            // Шторка одна на весь процесс — привязываем к монитору кликнутой панели,
+            // иначе компози́тор выбирает выход сам.
+            WayShell.Panel.Panel.place_on_active_monitor(win);
             win.set_opacity(1.0);
             win.present();
             visible();
@@ -78,9 +91,18 @@ private void init_layout() {
         }
 
         public void toggle() {
-            if (win.get_visible()) {
+            if (!win.get_visible()) {
+                set_visible();
+                return;
+            }
+            // Окно одно на процесс: клик по панели другого монитора должен перенести
+            // шторку туда, а не просто закрыть её.
+            if (WayShell.Panel.Panel.is_on_active_monitor(win)) {
                 set_hidden();
             } else {
+                // Скрываем без сигнала hidden(): Mediator на нём гасит подсветку
+                // кнопок панели, а мы тут же показываемся снова.
+                win.set_visible(false);
                 set_visible();
             }
         }
@@ -97,10 +119,6 @@ private void init_layout() {
             } else {
                 win.remove_css_class("focused");
             }
-        }
-
-        public void reinitialize() {
-            init_layout();
         }
     }
 }

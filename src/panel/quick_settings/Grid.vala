@@ -32,6 +32,14 @@ namespace WayShell.QS {
 
             var qs = Drawer.get_global();
             qs.will_show.connect(refresh_grid_layout);
+            // Шапка раскрыла своё подменю — гасим все свои. Здесь без shrink():
+            // размером сейчас распоряжается тот, кто открывается, иначе шторка дёргается.
+            qs.submenu_will_open.connect((owner) => {
+                if (owner == SubmenuOwner.GRID) return;
+                for (int i = 0; i < clusters.length; i++) {
+                    clusters.get(i).hide_all();
+                }
+            });
 
             refresh_grid_layout();
         }
@@ -39,13 +47,17 @@ namespace WayShell.QS {
         public void refresh_grid_layout() {
             var desired_buttons = new GenericArray<GridButton>();
 
+            // has_wireless_hardware() сканирует /sys/class/net, а метод вызывается
+            // на каждом открытии шторки — считаем один раз и передаём дальше.
+            bool has_wifi = WifiButton.has_wireless_hardware();
+
             // 1. Wi-Fi (если физически есть чип)
-            if (WifiButton.has_wireless_hardware()) {
+            if (has_wifi) {
                 desired_buttons.add(wifi_button);
             }
 
             // 2. Ethernet (Умный показ: подключен кабель -> всегда, отключен кабель -> только на ПК без Wi-Fi)
-            if (eth_button.should_be_visible()) {
+            if (eth_button.should_be_visible(has_wifi)) {
                 desired_buttons.add(eth_button);
             }
 
@@ -164,6 +176,11 @@ namespace WayShell.QS {
         }
 
         private void on_cluster_will_reveal(GridButton button) {
+            // Сообщаем шапке, чтобы она закрыла батарею/микшер/питание:
+            // два раскрытых подменю растягивали шторку до низа экрана.
+            var qs = Drawer.get_global();
+            qs.submenu_will_open(SubmenuOwner.GRID);
+
             for (int i = 0; i < clusters.length; i++) {
                 var c = clusters.get(i);
                 if (c != button.cluster) c.hide_all();

@@ -1,4 +1,3 @@
-// Путь: src/panel/quick_settings/modules/WifiButton.vala
 using Gtk;
 using GLib;
 using NM;
@@ -10,6 +9,8 @@ namespace WayShell.QS {
         public Spinner menu_spinner;
         public NM.Client? nm_client = null;
         private NM.DeviceWifi? wifi_device = null;
+        private NM.AccessPoint? watched_ap = null;
+        private ulong watched_ap_handler = 0;
         private bool ui_locked = false;
         private bool is_scanning = false;
         public string? connecting_ssid = null;
@@ -38,16 +39,16 @@ namespace WayShell.QS {
         }
 
         public WifiButton() {
-            var menu = new MenuWidget("Wi-Fi Networks", "network-wireless-signal-excellent-symbolic", true);
+            var menu = new MenuWidget(_("Wi-Fi Networks"), "network-wireless-signal-excellent-symbolic", true);
             menu.set_size_request(-1, 420);
 
-            base(ButtonType.WIFI, "Wi-Fi", "Offline", "network-wireless-offline-symbolic", menu);
+            base(ButtonType.WIFI, _("Wi-Fi"), _("Offline"), "network-wireless-offline-symbolic", menu);
             this.wifi_menu = menu;
 
             var failure_banner_container = new Box(Orientation.HORIZONTAL, 0);
             failure_banner_container.add_css_class("failure-banner");
             
-            var failure_label = new Label("Failed to connect to network");
+            var failure_label = new Label(_("Failed to connect to network"));
             failure_label.hexpand = true;
 
             var dismiss_btn = new Button();
@@ -68,16 +69,22 @@ namespace WayShell.QS {
             refresh_btn.valign = Align.CENTER;
             refresh_btn.halign = Align.END;
             refresh_btn.hexpand = true;
+            refresh_btn.tooltip_text = _("Search for networks");
+            refresh_btn.update_property(Gtk.AccessibleProperty.LABEL, _("Search for networks"), -1);
             refresh_btn.clicked.connect(() => {
                 trigger_scan.begin();
             });
             wifi_menu.title_container.append(refresh_btn);
 
-            try {
-                nm_client = new NM.Client(null);
+            // Клиент NM один на весь процесс и живёт в NetworkManagerService.
+            // Раньше здесь создавался свой new NM.Client(null) — синхронный вызов,
+            // который тянет по D-Bus весь кэш устройств, соединений и точек доступа.
+            var nm = Services.NetworkManagerService.get_global();
+            if (nm != null) {
+                nm_client = nm.get_client();
                 find_wifi_device();
-            } catch (Error e) {
-                warning("WifiButton: Failed to connect to NetworkManager: %s", e.message);
+            } else {
+                warning("WifiButton: NetworkManager недоступен");
             }
 
             if (nm_client != null) {
@@ -110,60 +117,77 @@ namespace WayShell.QS {
             });
 
             update_active_ap_status();
-            GLib.Timeout.add_seconds(3, () => {
+        }
+
+        // Сила сигнала живёт на объекте точки доступа, а не устройства. Здесь был
+        // Timeout каждые 3 с, который всё равно перечитывал кэш NM — а тот обновляется
+        // только по сканированию, так что опрос видел те же цифры.
+        private void watch_ap(NM.AccessPoint? ap) {
+            if (ap == watched_ap) return;
+            if (watched_ap != null && watched_ap_handler != 0) {
+                watched_ap.disconnect(watched_ap_handler);
+            }
+            watched_ap = ap;
+            watched_ap_handler = 0;
+            if (watched_ap == null) return;
+            watched_ap_handler = watched_ap.notify["strength"].connect(() => {
                 update_active_ap_status();
-                return true;
             });
         }
 
         public void find_wifi_device() {
             if (nm_client == null) return;
-            wifi_device = null;
+
+            NM.DeviceWifi? found = null;
             foreach (var dev in nm_client.get_devices()) {
                 if (dev.device_type == NM.DeviceType.WIFI) {
-                    wifi_device = (NM.DeviceWifi) dev;
-                    wifi_device.notify["state"].connect(() => {
-                        update_active_ap_status();
-                        refresh_wifi_list();
-                        state_changed();
-                    });
-                    wifi_device.notify["active-access-point"].connect(() => {
-                        update_active_ap_status();
-                        refresh_wifi_list();
-                        state_changed();
-                    });
+                    found = (NM.DeviceWifi) dev;
                     break;
                 }
             }
+
+            // Метод зовётся и из device_added/device_removed. Без этой проверки
+            // повторный вызов для того же устройства навешивал ещё один набор
+            // обработчиков notify, и каждое изменение состояния обрабатывалось дважды.
+            if (found == wifi_device) return;
+            wifi_device = found;
+            if (wifi_device == null) return;
+
+            wifi_device.notify["state"].connect(() => {
+                update_active_ap_status();
+                refresh_wifi_list();
+                state_changed();
+            });
+            wifi_device.notify["active-access-point"].connect(() => {
+                update_active_ap_status();
+                refresh_wifi_list();
+                state_changed();
+            });
         }
 
         private void on_toggle_clicked() {
             if (nm_client == null) return;
-            try {
-                bool is_enabled = nm_client.wireless_enabled;
-                nm_client.wireless_enabled = !is_enabled;
+            bool is_enabled = nm_client.wireless_enabled;
+            nm_client.wireless_enabled = !is_enabled;
 
-                if (is_enabled) {
-                    set_toggled(false);
-                    subtitle.set_text("Offline");
-                    icon.set_from_icon_name("network-wireless-offline-symbolic");
-                } else {
-                    ui_locked = true;
-                    set_toggled(true);
-                    subtitle.set_text("Connecting...");
-                    icon.set_from_icon_name("network-wireless-acquiring-symbolic");
-                    
-                    GLib.Timeout.add_seconds(3, () => {
-                        ui_locked = false;
-                        update_active_ap_status();
-                        state_changed();
-                        return false;
-                    });
-                }
-                state_changed();
-            } catch (Error e) {
-                warning("WifiButton: Failed to toggle wireless: %s", e.message);
+            if (is_enabled) {
+                set_toggled(false);
+                subtitle.set_text(_("Offline"));
+                icon.set_from_icon_name("network-wireless-offline-symbolic");
+            } else {
+                ui_locked = true;
+                set_toggled(true);
+                subtitle.set_text(_("Connecting..."));
+                icon.set_from_icon_name("network-wireless-acquiring-symbolic");
+
+                GLib.Timeout.add_seconds(3, () => {
+                    ui_locked = false;
+                    update_active_ap_status();
+                    state_changed();
+                    return Source.REMOVE;
+                });
             }
+            state_changed();
         }
 
         public void update_active_ap_status() {
@@ -171,12 +195,12 @@ namespace WayShell.QS {
 
             if (!nm_client.wireless_enabled) {
                 set_toggled(false);
-                subtitle.set_text("Offline");
+                subtitle.set_text(_("Offline"));
                 icon.set_from_icon_name("network-wireless-offline-symbolic");
                 return;
             }
 
-            string name = "Offline";
+            string name = _("Offline");
             string icon_name = "network-wireless-offline-symbolic";
             bool preparing = false;
 
@@ -191,7 +215,7 @@ namespace WayShell.QS {
                 case NM.DeviceState.DEACTIVATING:
                     set_toggled(false);
                     icon_name = "network-wireless-offline-symbolic";
-                    name = "Offline";
+                    name = _("Offline");
                     break;
                 case NM.DeviceState.PREPARE:
                 case NM.DeviceState.CONFIG:
@@ -202,11 +226,11 @@ namespace WayShell.QS {
                     set_toggled(true);
                     preparing = true;
                     icon_name = "network-wireless-acquiring-symbolic";
-                    name = "Connecting...";
+                    name = _("Connecting...");
                     break;
                 case NM.DeviceState.ACTIVATED:
                     set_toggled(true);
-                    name = "Connected";
+                    name = _("Connected");
                     icon_name = "network-wireless-signal-excellent-symbolic";
 
                     var active_conn = wifi_device.active_connection;
@@ -220,6 +244,7 @@ namespace WayShell.QS {
             }
 
             var ap = wifi_device.active_access_point;
+            watch_ap(ap);
             if (ap != null) {
                 string ap_ssid = ap_to_name(ap);
                 if (ap_ssid != "Offline" && ap_ssid != "Unknown Network" && ap_ssid != "") {
@@ -446,29 +471,25 @@ namespace WayShell.QS {
 
         private NM.Connection? find_existing_connection(string ssid) {
             if (parent_button.nm_client == null) return null;
-            try {
-                var connections = parent_button.nm_client.get_connections();
-                for (int i = 0; i < connections.length; i++) {
-                    var conn = connections[i];
-                    var setting = conn.get_setting_by_name("802-11-wireless") as NM.SettingWireless;
-                    if (setting != null) {
-                        var conn_ssid = setting.get_ssid();
-                        if (conn_ssid != null) {
-                            unowned uint8[] data = conn_ssid.get_data();
-                            char[] chars = new char[data.length + 1];
-                            for (int j = 0; j < data.length; j++) {
-                                chars[j] = (char)data[j];
-                            }
-                            chars[data.length] = '\0';
-                            string conn_ssid_str = (string)chars;
-                            if (conn_ssid_str == ssid) {
-                                return conn;
-                            }
+            var connections = parent_button.nm_client.get_connections();
+            for (int i = 0; i < connections.length; i++) {
+                var conn = connections[i];
+                var setting = conn.get_setting_by_name("802-11-wireless") as NM.SettingWireless;
+                if (setting != null) {
+                    var conn_ssid = setting.get_ssid();
+                    if (conn_ssid != null) {
+                        unowned uint8[] data = conn_ssid.get_data();
+                        char[] chars = new char[data.length + 1];
+                        for (int j = 0; j < data.length; j++) {
+                            chars[j] = (char)data[j];
+                        }
+                        chars[data.length] = '\0';
+                        string conn_ssid_str = (string)chars;
+                        if (conn_ssid_str == ssid) {
+                            return conn;
                         }
                     }
                 }
-            } catch (Error e) {
-                // Игнорируем
             }
             return null;
         }

@@ -7,8 +7,8 @@ pkgs.mkShell {
     ninja
     vala
     gcc
-    wayland-scanner
     glib
+    gettext
     wrapGAppsHook4
   ];
 
@@ -18,16 +18,16 @@ pkgs.mkShell {
     upower
     wireplumber
     pipewire
-    json-glib
     networkmanager
-    libpulseaudio
-    wayland
-    wayland-protocols
   ];
 
   shellHook = ''
     export GIO_EXTRA_MODULES=${pkgs.glib-networking}/lib/gio/modules
-    export GSETTINGS_SCHEMA_DIR=$PWD/data
+    # Схема теперь компилируется meson-ом в build/data/, а не лежит в репо.
+    export GSETTINGS_SCHEMA_DIR=$PWD/build/data
+    # То же для переводов: msgfmt кладёт .mo в build/po/<lang>/LC_MESSAGES/,
+    # а установленного префикса при запуске из дерева ещё нет.
+    export WAY_SHELL_LOCALEDIR=$PWD/build/po
     export CPATH="${pkgs.pipewire.dev}/include/pipewire-0.3:${pkgs.pipewire.dev}/include/spa-0.2:$CPATH"
   '';
 }

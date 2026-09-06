@@ -79,6 +79,11 @@ namespace WayShell.QS {
 
             var qs = Drawer.get_global();
             qs.hidden.connect(collapse_all);
+            // Сетка раскрыла своё подменю — гасим наше, иначе оба остаются
+            // открытыми и шторка растягивается до низа экрана.
+            qs.submenu_will_open.connect((owner) => {
+                if (owner != SubmenuOwner.HEADER) collapse_all();
+            });
         }
 
         private void on_battery_clicked() {
@@ -99,7 +104,7 @@ namespace WayShell.QS {
         private void toggle_revealer(Revealer active) {
             var qs = Drawer.get_global();
             bool state = active.get_reveal_child();
-            
+
             if (active != battery_revealer) battery_revealer.set_reveal_child(false);
             if (active != mixer_revealer) mixer_revealer.set_reveal_child(false);
             if (active != power_revealer) power_revealer.set_reveal_child(false);
@@ -109,6 +114,7 @@ namespace WayShell.QS {
                 qs.shrink();
                 qs.set_focused(false);
             } else {
+                qs.submenu_will_open(SubmenuOwner.HEADER);
                 qs.set_focused(true);
                 active.set_reveal_child(true);
             }

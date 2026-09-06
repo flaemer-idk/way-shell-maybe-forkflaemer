@@ -1,44 +1,8 @@
-// Путь: src/panel/quick_settings/modules/BluetoothButton.vala
 using Gtk;
 using GLib;
+using WayShell.Services;
 
 namespace WayShell.QS {
-
-    [DBus (name = "org.bluez.Adapter1")]
-    interface BluezAdapter : GLib.Object {
-        [DBus (name = "StartDiscovery")]
-        public abstract async void start_discovery () throws GLib.Error;
-        [DBus (name = "StopDiscovery")]
-        public abstract async void stop_discovery () throws GLib.Error;
-        [DBus (name = "RemoveDevice")]
-        public abstract async void remove_device (ObjectPath device) throws GLib.Error;
-        public abstract bool powered { get; set; }
-        public abstract bool discovering { get; }
-    }
-
-    [DBus (name = "org.bluez.Device1")]
-    interface BluezDevice : GLib.Object {
-        [DBus (name = "Connect")]
-        public abstract async void connect_device () throws GLib.Error;
-        [DBus (name = "Disconnect")]
-        public abstract async void disconnect_device () throws GLib.Error;
-        [DBus (name = "Pair")]
-        public abstract async void pair_device () throws GLib.Error;
-        public abstract string name { owned get; }
-        public abstract string alias { owned get; }
-        public abstract string address { owned get; }
-        public abstract string icon { owned get; }
-        public abstract bool paired { get; }
-        public abstract bool connected { get; }
-    }
-
-    [DBus (name = "org.freedesktop.DBus.ObjectManager")]
-    interface BluezObjectManager : GLib.Object {
-        [DBus (name = "GetManagedObjects")]
-        public abstract HashTable<string, HashTable<string, HashTable<string, Variant>>> get_managed_objects () throws GLib.Error;
-        public signal void interfaces_added (ObjectPath object_path, HashTable<string, HashTable<string, Variant>> interfaces_and_properties);
-        public signal void interfaces_removed (ObjectPath object_path, string[] interfaces);
-    }
 
     public class BluetoothButton : GridButton {
         private MenuWidget bt_menu;
@@ -50,8 +14,9 @@ namespace WayShell.QS {
         private Spinner scan_spinner;
         private Button scan_btn;
 
-        private bool is_scanning = false;
-        private string? connecting_path = null;
+        private BluetoothService bt;
+        private string? busy_path = null;
+        private uint scan_stop_id = 0;
 
         public signal void state_changed();
 
@@ -68,11 +33,12 @@ namespace WayShell.QS {
         }
 
         public BluetoothButton() {
-            var menu = new MenuWidget("Bluetooth", "bluetooth-active-symbolic", false);
+            var menu = new MenuWidget(_("Bluetooth"), "bluetooth-active-symbolic", false);
             menu.set_size_request(-1, 340);
 
-            base(ButtonType.BLUETOOTH, "Bluetooth", "Off", "bluetooth-active-symbolic", menu);
+            base(ButtonType.BLUETOOTH, _("Bluetooth"), _("Off"), "bluetooth-active-symbolic", menu);
             this.bt_menu = menu;
+            this.bt = BluetoothService.get_global();
 
             scan_spinner = new Spinner();
             scan_spinner.visible = false;
@@ -82,6 +48,7 @@ namespace WayShell.QS {
             scan_btn.valign = Align.CENTER;
             scan_btn.halign = Align.END;
             scan_btn.hexpand = true;
+            scan_btn.tooltip_text = _("Search for devices");
             scan_btn.clicked.connect(() => {
                 trigger_scan.begin();
             });
@@ -102,37 +69,34 @@ namespace WayShell.QS {
             paired_scroll.set_policy(PolicyType.NEVER, PolicyType.AUTOMATIC);
             paired_list_box = new Box(Orientation.VERTICAL, 4);
             paired_scroll.set_child(paired_list_box);
-            stack.add_titled(paired_scroll, "paired", "My Devices");
+            stack.add_titled(paired_scroll, "paired", _("My Devices"));
 
             var discover_scroll = new ScrolledWindow();
             discover_scroll.vexpand = true;
             discover_scroll.set_policy(PolicyType.NEVER, PolicyType.AUTOMATIC);
             discover_list_box = new Box(Orientation.VERTICAL, 4);
             discover_scroll.set_child(discover_list_box);
-            stack.add_titled(discover_scroll, "discover", "Search");
+            stack.add_titled(discover_scroll, "discover", _("Search"));
 
             bt_menu.options.append(stack);
 
             stack.notify["visible-child-name"].connect(() => {
                 if (stack.visible_child_name == "discover") {
                     trigger_scan.begin();
+                } else if (bt.discovering) {
+                    stop_scan.begin();
                 }
             });
 
-            // Слушаем появление/исчезновение Bluez адаптеров
-            try {
-                var manager = Bus.get_proxy_sync<BluezObjectManager> (BusType.SYSTEM, "org.bluez", "/");
-                manager.interfaces_added.connect(() => {
-                    update_bluetooth_status();
-                    refresh_devices();
-                    state_changed();
-                });
-                manager.interfaces_removed.connect(() => {
-                    update_bluetooth_status();
-                    refresh_devices();
-                    state_changed();
-                });
-            } catch (Error e) {}
+            // Состояние приходит сигналами BlueZ. Таймера на 3 секунды с
+            // синхронным GetManagedObjects в UI-потоке больше нет.
+            bt.changed.connect(update_bluetooth_status);
+            bt.devices_changed.connect(refresh_devices);
+            bt.notify["discovering"].connect(sync_scan_ui);
+            // Grid слушает state_changed, чтобы пересобрать раскладку кнопок.
+            // Дёргать его на каждое свойство BlueZ незачем — состав кнопок
+            // меняется только вместе с появлением адаптера.
+            bt.notify["has-adapter"].connect(() => { state_changed(); });
 
             toggle.clicked.connect(on_bluetooth_toggle);
             reveal_changed.connect((is_revealed) => {
@@ -141,168 +105,93 @@ namespace WayShell.QS {
                     if (stack.visible_child_name == "discover") {
                         trigger_scan.begin();
                     }
+                } else if (bt.discovering) {
+                    // Сканирование жрёт радио и батарею — гасим вместе с меню.
+                    stop_scan.begin();
                 }
             });
 
             update_bluetooth_status();
-            GLib.Timeout.add_seconds(3, () => {
-                return update_bluetooth_status();
-            });
-        }
-
-        private BluezAdapter? get_adapter(out string adapter_path) {
-            adapter_path = "/org/bluez/hci0";
-            try {
-                var manager = Bus.get_proxy_sync<BluezObjectManager> (BusType.SYSTEM, "org.bluez", "/");
-                var objects = manager.get_managed_objects ();
-                foreach (var path in objects.get_keys ()) {
-                    var interfaces = objects.lookup (path);
-                    if (interfaces.contains ("org.bluez.Adapter1")) {
-                        adapter_path = path;
-                        break;
-                    }
-                }
-                return Bus.get_proxy_sync<BluezAdapter> (BusType.SYSTEM, "org.bluez", adapter_path);
-            } catch (Error e) {
-                return null;
-            }
+            refresh_devices();
         }
 
         private void on_bluetooth_toggle() {
-            string path;
-            var adapter = get_adapter(out path);
-            bool current_powered = (adapter != null && adapter.powered);
-            bool next_state = !current_powered;
+            bool next_state = !bt.powered;
 
-            if (next_state) {
-                Process.spawn_command_line_async("rfkill unblock bluetooth");
-                Process.spawn_command_line_async("bluetoothctl power on");
-                if (adapter != null) {
-                    try { adapter.powered = true; } catch (Error e) {}
-                }
-            } else {
-                Process.spawn_command_line_async("bluetoothctl power off");
-                if (adapter != null) {
-                    try { adapter.powered = false; } catch (Error e) {}
-                }
-            }
-
+            // Оптимистичный UI: BlueZ ответит своим PropertiesChanged, и
+            // update_bluetooth_status() приведёт вид к реальному состоянию.
             set_toggled(next_state);
-            subtitle.set_text(next_state ? "Ready" : "Off");
+            subtitle.set_text(next_state ? _("Ready") : _("Off"));
             icon.set_from_icon_name(next_state ? "bluetooth-active-symbolic" : "bluetooth-disabled-symbolic");
 
-            GLib.Timeout.add(500, () => {
-                update_bluetooth_status();
-                refresh_devices();
-                state_changed();
+            bt.request_powered(next_state);
+        }
+
+        public void update_bluetooth_status() {
+            if (!bt.has_adapter || !bt.powered) {
+                set_toggled(false);
+                subtitle.set_text(_("Off"));
+                icon.set_from_icon_name("bluetooth-disabled-symbolic");
+                return;
+            }
+
+            set_toggled(true);
+            icon.set_from_icon_name("bluetooth-active-symbolic");
+
+            var dev = bt.get_connected_device();
+            if (dev == null) {
+                subtitle.set_text(_("Ready"));
+                return;
+            }
+
+            string name = dev.alias == "" ? _("Connected") : dev.alias;
+            if (dev.battery >= 0) {
+                subtitle.set_text(@"$name ($(dev.battery)%)");
+            } else {
+                subtitle.set_text(name);
+            }
+        }
+
+        private void sync_scan_ui() {
+            scan_spinner.visible = bt.discovering;
+            if (bt.discovering) scan_spinner.start();
+            else scan_spinner.stop();
+            scan_btn.sensitive = !bt.discovering;
+            refresh_devices();
+        }
+
+        private async void trigger_scan() {
+            if (bt.discovering || !bt.powered) return;
+
+            try {
+                yield bt.start_discovery();
+            } catch (Error e) {
+                warning("BlueZ: сканирование не началось: %s", e.message);
+                return;
+            }
+
+            // Автостоп через 15 секунд. Раньше рядом жил ещё таймер на 2 секунды,
+            // перерисовывавший список вслепую; теперь список обновляют
+            // InterfacesAdded/PropertiesChanged.
+            if (scan_stop_id != 0) Source.remove(scan_stop_id);
+            scan_stop_id = Timeout.add_seconds(15, () => {
+                scan_stop_id = 0;
+                stop_scan.begin();
                 return false;
             });
         }
 
-        public bool update_bluetooth_status() {
-            string path;
-            var adapter = get_adapter(out path);
-            if (adapter == null) {
-                set_toggled(false);
-                subtitle.set_text("Off");
-                icon.set_from_icon_name("bluetooth-disabled-symbolic");
-                return true;
+        private async void stop_scan() {
+            if (scan_stop_id != 0) {
+                Source.remove(scan_stop_id);
+                scan_stop_id = 0;
             }
-
             try {
-                bool is_powered = adapter.powered;
-                set_toggled(is_powered);
-
-                if (!is_powered) {
-                    subtitle.set_text("Off");
-                    icon.set_from_icon_name("bluetooth-disabled-symbolic");
-                    return true;
-                }
-
-                var manager = Bus.get_proxy_sync<BluezObjectManager> (BusType.SYSTEM, "org.bluez", "/");
-                var objects = manager.get_managed_objects ();
-                string? connected_name = null;
-                int connected_battery = -1;
-
-                foreach (var dev_path in objects.get_keys()) {
-                    var ifaces = objects.lookup(dev_path);
-                    if (ifaces.contains("org.bluez.Device1")) {
-                        var dev_props = ifaces.lookup("org.bluez.Device1");
-                        var conn_var = dev_props.lookup("Connected");
-                        if (conn_var != null && conn_var.get_boolean()) {
-                            var alias_var = dev_props.lookup("Alias") ?? dev_props.lookup("Name");
-                            connected_name = alias_var != null ? alias_var.get_string() : "Connected";
-
-                            if (ifaces.contains("org.bluez.Battery1")) {
-                                var bat_props = ifaces.lookup("org.bluez.Battery1");
-                                var pct_var = bat_props.lookup("Percentage");
-                                if (pct_var != null) connected_battery = (int) pct_var.get_byte();
-                            }
-                            break;
-                        }
-                    }
-                }
-
-                if (connected_name != null) {
-                    if (connected_battery >= 0) {
-                        subtitle.set_text(@"$connected_name ($connected_battery%)");
-                    } else {
-                        subtitle.set_text(connected_name);
-                    }
-                    icon.set_from_icon_name("bluetooth-active-symbolic");
-                } else {
-                    subtitle.set_text("Ready");
-                    icon.set_from_icon_name("bluetooth-active-symbolic");
-                }
+                yield bt.stop_discovery();
             } catch (Error e) {
-                set_toggled(false);
-                subtitle.set_text("Off");
+                // Discovery мог остановиться сам (адаптер выключили) — не шумим.
+                debug("BlueZ: остановка сканирования: %s", e.message);
             }
-            return true;
-        }
-
-        private async void trigger_scan() {
-            if (is_scanning) return;
-            string path;
-            var adapter = get_adapter(out path);
-            if (adapter == null || !adapter.powered) return;
-
-            is_scanning = true;
-            scan_spinner.visible = true;
-            scan_spinner.start();
-            scan_btn.sensitive = false;
-
-            try {
-                yield adapter.start_discovery();
-                
-                uint poll_id = GLib.Timeout.add_seconds(2, () => {
-                    refresh_devices();
-                    return is_scanning;
-                });
-
-                GLib.Timeout.add_seconds(15, () => {
-                    stop_scan.begin(adapter);
-                    GLib.Source.remove(poll_id);
-                    return false;
-                });
-            } catch (Error e) {
-                is_scanning = false;
-                scan_spinner.stop();
-                scan_spinner.visible = false;
-                scan_btn.sensitive = true;
-            }
-        }
-
-        private async void stop_scan(BluezAdapter adapter) {
-            try {
-                yield adapter.stop_discovery();
-            } catch (Error e) {}
-
-            is_scanning = false;
-            scan_spinner.stop();
-            scan_spinner.visible = false;
-            scan_btn.sensitive = true;
-            refresh_devices();
         }
 
         public void refresh_devices() {
@@ -310,74 +199,38 @@ namespace WayShell.QS {
             while ((child = paired_list_box.get_first_child()) != null) paired_list_box.remove(child);
             while ((child = discover_list_box.get_first_child()) != null) discover_list_box.remove(child);
 
-            try {
-                var manager = Bus.get_proxy_sync<BluezObjectManager> (BusType.SYSTEM, "org.bluez", "/");
-                var objects = manager.get_managed_objects ();
+            int paired_count = 0;
+            int discover_count = 0;
 
-                int paired_count = 0;
-                int discover_count = 0;
+            foreach (var dev in bt.get_devices()) {
+                string name = dev.alias;
+                string icon_type = map_device_icon(dev.icon);
 
-                foreach (var path in objects.get_keys()) {
-                    var interfaces = objects.lookup(path);
-                    if (!interfaces.contains("org.bluez.Device1")) continue;
-
-                    var dev_props = interfaces.lookup("org.bluez.Device1");
-                    if (dev_props == null) continue;
-
-                    string name = "Unknown Device";
-                    var alias_var = dev_props.lookup("Alias") ?? dev_props.lookup("Name");
-                    if (alias_var != null) name = alias_var.get_string();
-
-                    bool paired = false;
-                    var paired_var = dev_props.lookup("Paired");
-                    if (paired_var != null) paired = paired_var.get_boolean();
-
-                    bool connected = false;
-                    var conn_var = dev_props.lookup("Connected");
-                    if (conn_var != null) connected = conn_var.get_boolean();
-
-                    int battery_percent = -1;
-                    if (interfaces.contains("org.bluez.Battery1")) {
-                        var bat_props = interfaces.lookup("org.bluez.Battery1");
-                        var pct_var = bat_props.lookup("Percentage");
-                        if (pct_var != null) battery_percent = (int) pct_var.get_byte();
-                    }
-
-                    string icon_type = "bluetooth-active-symbolic";
-                    var icon_var = dev_props.lookup("Icon");
-                    if (icon_var != null) {
-                        icon_type = map_device_icon(icon_var.get_string());
-                    }
-
-                    string device_path = path;
-
-                    if (paired) {
-                        paired_count++;
-                        paired_list_box.append(create_paired_row(device_path, name, icon_type, connected, battery_percent));
-                    } else {
-                        if (name != "Unknown Device" && name != "") {
-                            discover_count++;
-                            discover_list_box.append(create_discover_row(device_path, name, icon_type));
-                        }
-                    }
+                if (dev.paired) {
+                    paired_count++;
+                    if (name == "") name = _("Unknown Device");
+                    paired_list_box.append(create_paired_row(dev.path, name, icon_type,
+                                                             dev.connected, dev.battery));
+                } else if (name != "") {
+                    // Безымянные устройства при сканировании — это чужие
+                    // телефоны и наушники в радиусе, толку от них в списке нет.
+                    discover_count++;
+                    discover_list_box.append(create_discover_row(dev.path, name, icon_type));
                 }
+            }
 
-                if (paired_count == 0) {
-                    var empty_lbl = new Label("No paired devices");
-                    empty_lbl.add_css_class("dim-label");
-                    empty_lbl.margin_top = 20;
-                    paired_list_box.append(empty_lbl);
-                }
+            if (paired_count == 0) {
+                var empty_lbl = new Label(_("No paired devices"));
+                empty_lbl.add_css_class("dim-label");
+                empty_lbl.margin_top = 20;
+                paired_list_box.append(empty_lbl);
+            }
 
-                if (discover_count == 0) {
-                    var empty_lbl = new Label(is_scanning ? "Searching for devices..." : "No devices found");
-                    empty_lbl.add_css_class("dim-label");
-                    empty_lbl.margin_top = 20;
-                    discover_list_box.append(empty_lbl);
-                }
-
-            } catch (Error e) {
-                warning("BlueZ: Failed to populate devices: %s", e.message);
+            if (discover_count == 0) {
+                var empty_lbl = new Label(bt.discovering ? _("Searching for devices...") : _("No devices found"));
+                empty_lbl.add_css_class("dim-label");
+                empty_lbl.margin_top = 20;
+                discover_list_box.append(empty_lbl);
             }
         }
 
@@ -403,11 +256,11 @@ namespace WayShell.QS {
                 row.append(bat_lbl);
             }
 
-            bool is_connecting_this = (connecting_path != null && connecting_path == path);
+            bool is_busy_this = (busy_path != null && busy_path == path);
 
             var status_lbl = new Label("");
-            if (is_connecting_this) {
-                status_lbl.set_text("Connecting...");
+            if (is_busy_this) {
+                status_lbl.set_text(connected ? _("Disconnecting...") : _("Connecting..."));
                 status_lbl.add_css_class("dim-label");
                 row.append(status_lbl);
 
@@ -416,7 +269,7 @@ namespace WayShell.QS {
                 spinner.start();
                 row.append(spinner);
             } else {
-                status_lbl.set_text(connected ? "Connected" : "Disconnected");
+                status_lbl.set_text(connected ? _("Connected") : _("Disconnected"));
                 if (connected) status_lbl.add_css_class("active-icon-activated");
                 else status_lbl.add_css_class("dim-label");
                 row.append(status_lbl);
@@ -424,13 +277,14 @@ namespace WayShell.QS {
 
             var btn = new Button();
             btn.set_child(row);
-            if (is_connecting_this) btn.sensitive = false;
+            btn.tooltip_text = connected ? _("Disconnect %s").printf(name) : _("Connect %s").printf(name);
+            if (is_busy_this) btn.sensitive = false;
 
             btn.clicked.connect(() => {
-                connecting_path = path;
+                busy_path = path;
                 refresh_devices();
                 toggle_connection.begin(path, connected, name, (obj, res) => {
-                    connecting_path = null;
+                    busy_path = null;
                     refresh_devices();
                 });
             });
@@ -442,7 +296,8 @@ namespace WayShell.QS {
             var unpair_btn = new Button.from_icon_name("user-trash-symbolic");
             unpair_btn.add_css_class("circular");
             unpair_btn.add_css_class("flat");
-            unpair_btn.set_tooltip_text("Unpair device");
+            unpair_btn.set_tooltip_text(_("Unpair device"));
+            unpair_btn.update_property(Gtk.AccessibleProperty.LABEL, _("Unpair device"), -1);
             unpair_btn.clicked.connect(() => {
                 unpair_device.begin(path);
             });
@@ -465,17 +320,17 @@ namespace WayShell.QS {
             name_lbl.xalign = 0.0f;
             name_lbl.ellipsize = Pango.EllipsizeMode.END;
 
-            bool is_connecting_this = (connecting_path != null && connecting_path == path);
+            bool is_busy_this = (busy_path != null && busy_path == path);
 
-            var pair_lbl = new Label(is_connecting_this ? "Pairing..." : "Pair");
-            if (is_connecting_this) pair_lbl.add_css_class("dim-label");
+            var pair_lbl = new Label(is_busy_this ? _("Pairing...") : _("Pair"));
+            if (is_busy_this) pair_lbl.add_css_class("dim-label");
             else pair_lbl.add_css_class("active-icon-activated");
 
             row.append(icon_img);
             row.append(name_lbl);
             row.append(pair_lbl);
 
-            if (is_connecting_this) {
+            if (is_busy_this) {
                 var spinner = new Spinner();
                 spinner.visible = true;
                 spinner.start();
@@ -484,12 +339,13 @@ namespace WayShell.QS {
             }
 
             btn.set_child(row);
+            btn.tooltip_text = _("Pair %s").printf(name);
 
             btn.clicked.connect(() => {
-                connecting_path = path;
+                busy_path = path;
                 refresh_devices();
                 pair_and_connect.begin(path, name, (obj, res) => {
-                    connecting_path = null;
+                    busy_path = null;
                     refresh_devices();
                 });
             });
@@ -499,13 +355,11 @@ namespace WayShell.QS {
 
         private async void toggle_connection(string path, bool is_connected, string name) {
             try {
-                var device = yield Bus.get_proxy<BluezDevice> (BusType.SYSTEM, "org.bluez", path);
                 if (is_connected) {
-                    yield device.disconnect_device();
+                    yield bt.disconnect_device(path);
                 } else {
-                    yield device.connect_device();
+                    yield bt.connect_device(path);
                 }
-                update_bluetooth_status();
             } catch (Error e) {
                 warning("BlueZ: Failed to toggle connection for %s: %s", name, e.message);
             }
@@ -513,27 +367,19 @@ namespace WayShell.QS {
 
         private async void pair_and_connect(string path, string name) {
             try {
-                var device = yield Bus.get_proxy<BluezDevice> (BusType.SYSTEM, "org.bluez", path);
-                yield device.pair_device();
-                yield device.connect_device();
+                yield bt.pair_device(path);
+                yield bt.connect_device(path);
                 stack.set_visible_child_name("paired");
-                update_bluetooth_status();
             } catch (Error e) {
                 warning("BlueZ: Failed to pair %s: %s", name, e.message);
             }
         }
 
         private async void unpair_device(string device_path) {
-            string adapter_path;
-            var adapter = get_adapter(out adapter_path);
-            if (adapter != null) {
-                try {
-                    yield adapter.remove_device(new ObjectPath(device_path));
-                    refresh_devices();
-                    update_bluetooth_status();
-                } catch (Error e) {
-                    warning("BlueZ: Failed to remove device: %s", e.message);
-                }
+            try {
+                yield bt.remove_device(device_path);
+            } catch (Error e) {
+                warning("BlueZ: Failed to remove device: %s", e.message);
             }
         }
 

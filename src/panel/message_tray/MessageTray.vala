@@ -23,6 +23,10 @@ namespace WayShell.Panel {
 
             var dismiss_btn = new Button.from_icon_name("window-close-symbolic");
             dismiss_btn.add_css_class("circular");
+            // Кнопка только с иконкой: без метки скринридер видит безымянную кнопку.
+            dismiss_btn.tooltip_text = _("Dismiss all notifications from %s").printf(app);
+            dismiss_btn.update_property(Gtk.AccessibleProperty.LABEL,
+                                        _("Dismiss all notifications from %s").printf(app), -1);
             dismiss_btn.clicked.connect(dismiss_all);
             header_box.append(dismiss_btn);
 
@@ -36,10 +40,6 @@ namespace WayShell.Panel {
             var widget = new NotificationWidget(n);
             widgets.insert(n.id, widget);
             list_box.prepend(widget);
-
-            if (widgets.size() > 1) {
-                widget.set_stack_effect(true);
-            }
         }
 
         public void remove_notification(uint32 id) {
@@ -142,8 +142,7 @@ namespace WayShell.Panel {
     public class MessageTray : GLib.Object {
         private static MessageTray? global = null;
 
-public Gtk.Window win;
-public Gtk.Window underlay;
+        public Gtk.Window win;
         public Box container;
         public Adw.Animation animation;
         public CalendarWidget calendar;
@@ -160,37 +159,21 @@ public Gtk.Window underlay;
         }
 
         private MessageTray() {
-            global = this; // <-- ИСПРАВЛЕНО: Предотвращаем любые будущие рекурсии
-            init_underlay();
+            // Присваиваем global до построения layout: дети в их конструкторах
+            // могут вызвать get_global() — иначе будет рекурсия.
+            global = this;
             init_layout();
-        }
-        
-        private void init_underlay() {
-            underlay = new Gtk.Window();
-            underlay.add_css_class("underlay");
-
-            Gtk4LayerShell.init_for_window(underlay);
-            Gtk4LayerShell.set_namespace(underlay, "way-shell-message-tray-underlay");
-            Gtk4LayerShell.set_layer(underlay, Gtk4LayerShell.Layer.TOP);
-            Gtk4LayerShell.set_anchor(underlay, Gtk4LayerShell.Edge.TOP, true);
-            Gtk4LayerShell.set_anchor(underlay, Gtk4LayerShell.Edge.BOTTOM, true);
-            Gtk4LayerShell.set_anchor(underlay, Gtk4LayerShell.Edge.LEFT, true);
-            Gtk4LayerShell.set_anchor(underlay, Gtk4LayerShell.Edge.RIGHT, true);
-
-            var button = new Button();
-            button.hexpand = true;
-            button.vexpand = true;
-            underlay.set_child(button);
-
-            button.clicked.connect(set_hidden);
         }
 
         private void init_layout() {
             win = new Gtk.Window();
             win.name = "message-tray";
+            // Блокируем уничтожение: рекурсивный init_layout() на close_request
+            // при каждом закрытии создавал новый NotificationsList с новыми
+            // подписками на NotificationsService, старые не отключались.
             win.close_request.connect(() => {
-                init_layout();
-                return false;
+                set_hidden();
+                return true;
             });
 
             Gtk4LayerShell.init_for_window(win);
@@ -229,7 +212,9 @@ public Gtk.Window underlay;
         }
 
         public void set_visible() {
-            underlay.present();
+            // Окно трея одно на весь процесс: без явного set_monitor компози́тор
+            // сам решает, на каком выходе его показать.
+            WayShell.Panel.Panel.place_on_active_monitor(win);
             win.set_opacity(1.0); // Сразу устанавливаем 1.0
             win.present();
             visible();
@@ -237,14 +222,22 @@ public Gtk.Window underlay;
 
         public void set_hidden() {
             win.set_visible(false);
-            underlay.set_visible(false);
             hidden();
         }
 
         public void toggle() {
-            if (win.get_visible()) {
+            if (!win.get_visible()) {
+                set_visible();
+                return;
+            }
+            // Окно одно на процесс: клик по панели другого монитора переносит трей
+            // туда, а не закрывает его.
+            if (WayShell.Panel.Panel.is_on_active_monitor(win)) {
                 set_hidden();
             } else {
+                // Без set_hidden(): его сигнал hidden() гасит подсветку кнопок
+                // панели, а мы тут же показываемся снова.
+                win.set_visible(false);
                 set_visible();
             }
         }

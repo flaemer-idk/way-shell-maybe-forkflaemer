@@ -47,4 +47,7 @@ namespace Gtk4LayerShell {
 
     [CCode (cheader_filename = "gtk4-layer-shell.h", cname = "gtk_layer_set_monitor")]
     public static void set_monitor (Gtk.Window window, Gdk.Monitor monitor);
+
+    [CCode (cheader_filename = "gtk4-layer-shell.h", cname = "gtk_layer_get_monitor")]
+    public static unowned Gdk.Monitor? get_monitor (Gtk.Window window);
 }

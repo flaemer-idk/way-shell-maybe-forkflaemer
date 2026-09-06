@@ -1,4 +1,3 @@
-// Путь: src/panel/quick_settings/modules/header/BatteryButton.vala
 using Gtk;
 using WayShell.Services;
 
@@ -6,7 +5,7 @@ namespace WayShell.QS {
     public class BatteryButton : Button {
         private Box box;
         private Image icon;
-        private Label label;
+        private new Label label;
         private UpDevice power_dev;
 
         public BatteryButton() {
@@ -26,9 +25,7 @@ namespace WayShell.QS {
                 power_dev = upower.get_primary_device();
                 if (power_dev != null) {
                     update_status();
-                    power_dev.notify["percentage"].connect(update_status);
-                    power_dev.notify["state"].connect(update_status);
-                    power_dev.notify["present"].connect(update_status);
+                    power_dev.changed.connect(update_status);
                 }
             }
         }
@@ -39,9 +36,14 @@ namespace WayShell.QS {
                 return;
             }
             this.visible = true;
-            double percent = power_dev.percentage;
-            label.set_text("%.0f%%".printf(percent));
-            icon.set_from_icon_name(UPowerService.device_map_icon_name(power_dev));
+            label.set_text(power_dev.get_percent_text());
+            icon.set_from_icon_name(power_dev.get_icon_name());
+
+            string summary = power_dev.get_summary_text();
+            this.tooltip_text = summary;
+            // Внутри кнопки только иконка и проценты, так что метку задаём явно.
+            this.update_property(Gtk.AccessibleProperty.LABEL,
+                                 _("Battery: %s").printf(summary), -1);
         }
     }
 }

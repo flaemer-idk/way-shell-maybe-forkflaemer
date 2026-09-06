@@ -23,13 +23,47 @@ namespace WayShell.Panel {
         public Box media_box;
         public Image media_icon;
         public Label media_label;
-        public Image webcam_icon;
 
-        private string? current_player_name = null;
         private int64 last_scroll_time = 0;
 
         public static HashTable<Gdk.Monitor, Panel> get_all_panels() {
             return panels;
+        }
+
+        // Монитор, с которым юзер взаимодействовал последним. Синглтон-окна
+        // (шторка, трей, OSD, баннер) — по одному на процесс, и без явного
+        // gtk_layer_set_monitor компози́тор сам решает, где их показать: клик по
+        // панели монитора A мог открыть шторку на мониторе B.
+        private static Gdk.Monitor? active_monitor = null;
+
+        public static Gdk.Monitor? get_active_monitor() {
+            if (active_monitor != null && active_monitor.is_valid()) return active_monitor;
+            if (monitors == null || monitors.length == 0) return null;
+            active_monitor = monitors.get(0);
+            return active_monitor;
+        }
+
+        public static void set_active_monitor(Gdk.Monitor? mon) {
+            if (mon != null && mon.is_valid()) active_monitor = mon;
+        }
+
+        // true, если окно уже на активном мониторе. Нужно, чтобы различать «клик
+        // по той же панели» (закрыть) и «клик по панели другого монитора» (перенести).
+        public static bool is_on_active_monitor(Gtk.Window win) {
+            var mon = get_active_monitor();
+            if (mon == null) return true;
+            var current = Gtk4LayerShell.get_monitor(win);
+            return current == null || current == mon;
+        }
+
+        // Ставит layer-shell окно на монитор, с которым юзер работает сейчас.
+        // gtk_layer_set_monitor на показанном окне пересоздаёт surface, поэтому
+        // вызываем его до present() и только когда монитор действительно меняется.
+        public static void place_on_active_monitor(Gtk.Window win) {
+            var mon = get_active_monitor();
+            if (mon == null) return;
+            if (Gtk4LayerShell.get_monitor(win) == mon) return;
+            Gtk4LayerShell.set_monitor(win, mon);
         }
 
         public Panel() {
@@ -42,7 +76,7 @@ namespace WayShell.Panel {
             Gtk4LayerShell.set_namespace(win, "way-shell-panel");
             Gtk4LayerShell.set_layer(win, Gtk4LayerShell.Layer.TOP);
             Gtk4LayerShell.auto_exclusive_zone_enable(win);
-            
+
             Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.TOP, true);
             Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.LEFT, true);
             Gtk4LayerShell.set_anchor(win, Gtk4LayerShell.Edge.RIGHT, true);
@@ -64,6 +98,7 @@ namespace WayShell.Panel {
             media_btn = new Button();
             media_btn.add_css_class("panel-button");
             media_btn.visible = false;
+            media_btn.tooltip_text = _("Player: click to play or pause, scroll to change track");
 
             media_box = new Box(Orientation.HORIZONTAL, 6);
             media_icon = new Image.from_icon_name("audio-x-generic-symbolic");
@@ -81,16 +116,16 @@ namespace WayShell.Panel {
 
             center.append(media_btn);
 
-            // Индикатор веб-камеры
-            webcam_icon = new Image.from_icon_name("camera-web-symbolic");
-            webcam_icon.add_css_class("webcam-active");
-            webcam_icon.visible = false;
-            right.append(webcam_icon);
-
-            start_playerctl_monitor();
-            GLib.Timeout.add(1000, check_webcam_status);
+            var media = MediaPlayerService.get_global();
+            media.changed.connect(update_media);
+            update_media();
 
             win.set_child(container); 
+        }
+
+        // Вызывается при отключении монитора.
+        public void shutdown() {
+            win.destroy();
         }
 
         public void attach_to_monitor(Gdk.Monitor mon) {
@@ -115,77 +150,50 @@ namespace WayShell.Panel {
             right.append(clock);
         }
 
-        private void start_playerctl_monitor() {
-            try {
-                string[] spawn_args = {"playerctl", "--follow", "metadata", "--format", "{{playerName}}|{{ artist }} - {{ title }}"};
-                int stdout_fd;
-                Process.spawn_async_with_pipes(null, spawn_args, null, SpawnFlags.SEARCH_PATH, null, null, null, out stdout_fd, null);
-                
-                var channel = new IOChannel.unix_new(stdout_fd);
-                channel.set_encoding("UTF-8");
-                channel.add_watch(IOCondition.IN | IOCondition.HUP, (source, cond) => {
-                    if ((cond & IOCondition.HUP) != 0) return false;
-                    
-                    string line;
-                    size_t length, term_pos;
-                    if (source.read_line(out line, out length, out term_pos) == IOStatus.NORMAL) {
-                        line = line.strip();
-                        string[] parts = line.split("|", 2);
-                        if (parts.length >= 2 && parts[1] != "" && parts[1] != "-" && parts[1] != " - ") {
-                            current_player_name = parts[0].strip();
-                            media_label.set_text(parts[1].strip());
-                            media_btn.visible = true;
-                        } else {
-                            media_btn.visible = false;
-                        }
-                    }
-                    return true;
-                });
-            } catch (Error e) {
-                warning("Failed to start playerctl monitor: %s", e.message);
+        // Панель только рисует: всю работу с MPRIS делает MediaPlayerService,
+        // один на процесс независимо от числа мониторов.
+        private void update_media() {
+            var media = MediaPlayerService.get_global();
+            if (!media.available) {
+                media_btn.visible = false;
+                return;
             }
+
+            string text = media.get_display_text();
+            if (text == "") {
+                media_btn.visible = false;
+                return;
+            }
+
+            media_label.set_text(text);
+            media_btn.visible = true;
+            media_icon.set_from_icon_name(media.playing
+                ? "media-playback-start-symbolic"
+                : "media-playback-pause-symbolic");
+            media_btn.update_property(Gtk.AccessibleProperty.LABEL,
+                                      media.playing
+                                          ? _("Player, playing: %s").printf(text)
+                                          : _("Player, paused: %s").printf(text), -1);
         }
 
         private bool on_media_scroll(EventControllerScroll ctrl, double dx, double dy) {
             int64 now = get_monotonic_time();
             if (now - last_scroll_time < 400000) return true;
-            
-            string action = (dy < 0) ? "next" : "previous";
-            try {
-                Process.spawn_command_line_async("playerctl %s -p %s".printf(action, current_player_name ?? ""));
-                last_scroll_time = now;
-            } catch (Error e) {
-                warning("Failed to dispatch playerctl action: %s", e.message);
+
+            var media = MediaPlayerService.get_global();
+            if (!media.available) return true;
+
+            if (dy < 0) {
+                media.next();
+            } else {
+                media.previous();
             }
+            last_scroll_time = now;
             return true;
         }
 
         private void on_media_clicked() {
-            try {
-                Process.spawn_command_line_async("playerctl play-pause -p %s".printf(current_player_name ?? ""));
-            } catch (Error e) {
-                warning("Failed to toggle playback: %s", e.message);
-            }
-        }
-
-        private bool check_webcam_status() {
-            var file = File.new_for_path("/dev/video0");
-            if (!file.query_exists()) {
-                webcam_icon.visible = false;
-                return true;
-            }
-
-            try {
-                var stream = file.read();
-                stream.close();
-                webcam_icon.visible = false;
-            } catch (GLib.IOError.BUSY e) {
-                // Если файл занят другим процессом, значит веб-камера активна
-                webcam_icon.visible = true;
-            } catch (GLib.Error e) {
-                webcam_icon.visible = false;
-            }
-            return true;
+            MediaPlayerService.get_global().play_pause();
         }
 
         public Gdk.Monitor get_monitor() { return monitor; }
@@ -205,30 +213,70 @@ namespace WayShell.Panel {
 
             for (uint i = 0; i < monitors_model.get_n_items(); i++) {
                 var mon = (Gdk.Monitor)monitors_model.get_item(i);
-                on_monitor_added(mon, i);
+                on_monitor_added(mon);
             }
 
+            // Обрабатываем все элементы, а не только первый: при added=2 вторая
+            // панель не создавалась. И не полагаемся на индексы для удаления —
+            // они рассинхронизировывались с локальной копией и убивали не ту панель.
             monitors_model.items_changed.connect((position, removed, added) => {
-                if (added > 0) on_monitor_added((Gdk.Monitor)monitors_model.get_item(position), position);
-                if (removed > 0) on_monitor_removed(position);
+                sync_monitors(monitors_model);
             });
         }
 
-        private static void on_monitor_added(Gdk.Monitor mon, uint pos) {
+        // Сверяет живые панели с актуальным списком мониторов по самим объектам
+        // Gdk.Monitor, а не по позициям в модели.
+        private static void sync_monitors(GLib.ListModel model) {
+            var current = new GenericArray<Gdk.Monitor>();
+            for (uint i = 0; i < model.get_n_items(); i++) {
+                var mon = (Gdk.Monitor) model.get_item(i);
+                if (mon != null && mon.is_valid()) current.add(mon);
+            }
+
+            // Удаляем панели мониторов, которых больше нет.
+            var stale = new GenericArray<Gdk.Monitor>();
+            foreach (var known in panels.get_keys()) {
+                bool still_there = false;
+                for (int i = 0; i < current.length; i++) {
+                    if (current.get(i) == known) { still_there = true; break; }
+                }
+                if (!still_there) stale.add(known);
+            }
+            for (int i = 0; i < stale.length; i++) {
+                on_monitor_removed(stale.get(i));
+            }
+
+            // Добавляем панели для новых мониторов.
+            for (int i = 0; i < current.length; i++) {
+                if (panels.lookup(current.get(i)) == null) {
+                    on_monitor_added(current.get(i));
+                }
+            }
+        }
+
+        private static void on_monitor_added(Gdk.Monitor mon) {
             if (!mon.is_valid()) return;
-            monitors.insert((int) pos, mon);
+            if (panels.lookup(mon) != null) return;
+            monitors.add(mon);
+            if (active_monitor == null) active_monitor = mon;
             var panel = new Panel();
             panel.attach_to_monitor(mon);
         }
 
-        private static void on_monitor_removed(uint pos) {
-            var removed = monitors.get(pos);
-            if (removed == null) return;
-            monitors.remove_index(pos);
-            var panel = panels.lookup(removed);
+        private static void on_monitor_removed(Gdk.Monitor mon) {
+            var panel = panels.lookup(mon);
             if (panel != null) {
-                panel.win.destroy();
-                panels.remove(removed);
+                panel.shutdown();
+                panels.remove(mon);
+            }
+            for (int i = 0; i < monitors.length; i++) {
+                if (monitors.get(i) == mon) {
+                    monitors.remove_index(i);
+                    break;
+                }
+            }
+            if (active_monitor == mon) {
+                active_monitor = (monitors.length > 0) ? monitors.get(0) : null;
             }
         }
     }

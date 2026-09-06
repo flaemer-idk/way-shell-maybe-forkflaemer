@@ -1,17 +1,19 @@
 idk sorry i dont have readme good but
 
+fork of [way-shell](https://github.com/ldelossa/way-shell) by ldelossa, rewritten from C to Vala. GPL-2.0.
+
 ```
 command nix-shell
 ```
 
 ```
-meson setup Build
+meson setup build
 ```
 
 ```
-meson compile -C Build/
+meson compile -C build/
 ```
 
 ```
-./Build/way-shell
+./build/way-shell
 ```

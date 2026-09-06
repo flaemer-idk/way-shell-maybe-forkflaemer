@@ -1,4 +1,3 @@
-// Путь: src/osd/NotificationBanner.vala
 using Gtk;
 using Adw;
 using WayShell.Services;
@@ -9,11 +8,16 @@ namespace WayShell.Osd {
         private static NotificationBanner? global = null;
 
         public Gtk.Window win;
+        public Adw.Clamp clamp;
         public Box container;
         public Adw.Animation animation;
         private uint timer_id = 0;
         private uint32 current_notification_id = 0;
         private GLib.Settings notif_settings;
+        private EventControllerMotion motion;
+
+        private const uint DEFAULT_TIMEOUT_SECONDS = 6;
+        private const uint HOVER_RECHECK_SECONDS = 2;
 
         public static NotificationBanner get_global () {
             if (global == null) {
@@ -43,7 +47,6 @@ namespace WayShell.Osd {
             Gtk4LayerShell.set_keyboard_mode (win, Gtk4LayerShell.KeyboardMode.NONE);
             win.visible = false;
 
-            // Анимация выезда сверху
             var target = new Adw.CallbackAnimationTarget ((value) => {
                 Gtk4LayerShell.set_margin (win, Gtk4LayerShell.Edge.TOP, (int) value);
                 double opacity = (value + 70.0) / 80.0;
@@ -52,19 +55,25 @@ namespace WayShell.Osd {
             animation = new Adw.TimedAnimation (win, -70.0, 10.0, 250, target);
             animation.done.connect (on_animation_done);
 
+            // Adw.Clamp жестко удерживает ширину 380px и заставляет текст переноситься
+            clamp = new Adw.Clamp ();
+            clamp.maximum_size = 380;
+            clamp.tightening_threshold = 360;
+
             container = new Box (Orientation.VERTICAL, 0);
+            clamp.set_child (container);
 
-            // Пауза таймера при наведении мыши
-            var motion = new EventControllerMotion ();
-            motion.enter.connect (() => {
-                reset_timer ();
-            });
+            motion = new EventControllerMotion ();
+            // enter здесь сознательно не подключён: когда баннер появляется
+            // под курсором, GTK синтезирует crossing-событие — таймер снимался,
+            // а leave без движения мыши не приходил, и баннер висел вечно.
+            // Пауза при наведении теперь делается опросом contains_pointer в таймере.
             motion.leave.connect (() => {
-                start_timer (10);
+                start_timer (DEFAULT_TIMEOUT_SECONDS);
             });
-            container.add_controller (motion);
+            clamp.add_controller (motion);
 
-            win.set_child (container);
+            win.set_child (clamp);
         }
 
         private void on_notification_added (Services.Notification n) {
@@ -74,23 +83,26 @@ namespace WayShell.Osd {
 
             current_notification_id = n.id;
 
-            // Очищаем старое содержимое
             Widget? child;
             while ((child = container.get_first_child ()) != null) {
                 container.remove (child);
             }
 
-            // Создаем виджет
             var widget = new NotificationWidget (n, true);
-            
-            // При нажатии на тело баннера — сразу прячем его с экрана!
             widget.activated.connect (() => {
                 hide_banner ();
             });
 
             container.append (widget);
+            show_banner (resolve_timeout (n));
+        }
 
-            show_banner ();
+        // Клиент может задать expire_timeout в мс (спека org.freedesktop.Notifications):
+        // -1 — решает сервер, 0 — не закрывать автоматически.
+        private uint resolve_timeout (Services.Notification n) {
+            if (n.expire_timeout == 0) return 0;
+            if (n.expire_timeout < 0) return DEFAULT_TIMEOUT_SECONDS;
+            return (uint) (n.expire_timeout / 1000).clamp (1, 60);
         }
 
         private void on_notification_closed (uint32 id) {
@@ -99,43 +111,48 @@ namespace WayShell.Osd {
             }
         }
 
-        private void show_banner () {
-            reset_timer ();
-
+        private void show_banner (uint seconds = DEFAULT_TIMEOUT_SECONDS) {
             if (!win.visible) {
+                // Баннер один на весь процесс — привязываем к активному монитору,
+                // иначе компози́тор выбирает выход сам.
+                WayShell.Panel.Panel.place_on_active_monitor (win);
                 win.visible = true;
                 var timed_anim = (Adw.TimedAnimation) animation;
+                if (animation.state == Adw.AnimationState.PLAYING) animation.reset ();
                 timed_anim.set_reverse (false);
                 animation.play ();
-            } else {
-                start_timer (10); // 10 секунд
             }
+            // Таймер стартует всегда и сразу. Раньше он зависел от animation.done,
+            // а Adw.Animation пропускает проигрывание, если окно ещё не смапено.
+            if (seconds > 0) start_timer (seconds);
+            else reset_timer ();
         }
 
         public void hide_banner () {
             reset_timer ();
-            if (win.visible) {
-                var timed_anim = (Adw.TimedAnimation) animation;
-                timed_anim.set_reverse (true);
-                animation.play ();
-            }
+            if (!win.visible) return;
+            var timed_anim = (Adw.TimedAnimation) animation;
+            if (animation.state == Adw.AnimationState.PLAYING) animation.reset ();
+            timed_anim.set_reverse (true);
+            animation.play ();
         }
 
         private void on_animation_done () {
-            var timed_anim = (Adw.TimedAnimation) animation;
-            if (timed_anim.get_reverse ()) {
+            if (((Adw.TimedAnimation) animation).get_reverse ()) {
                 win.visible = false;
-            } else {
-                start_timer (10);
             }
         }
 
         private void start_timer (uint seconds) {
             reset_timer ();
             timer_id = GLib.Timeout.add_seconds (seconds, () => {
-                hide_banner ();
                 timer_id = 0;
-                return false;
+                if (motion.contains_pointer) {
+                    start_timer (HOVER_RECHECK_SECONDS);
+                    return Source.REMOVE;
+                }
+                hide_banner ();
+                return Source.REMOVE;
             });
         }
 

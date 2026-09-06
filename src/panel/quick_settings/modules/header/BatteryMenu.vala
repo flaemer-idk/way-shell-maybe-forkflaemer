@@ -14,7 +14,7 @@ namespace WayShell.QS {
             Object(orientation: Orientation.VERTICAL, spacing: 0);
             this.visible = false;
 
-            menu = new MenuWidget("Battery Status", "battery-full-symbolic", false);
+            menu = new MenuWidget(_("Battery Status"), "battery-full-symbolic", false);
             this.append(menu);
 
             var content = new Box(Orientation.VERTICAL, 8);
@@ -23,6 +23,8 @@ namespace WayShell.QS {
             battery_bar = new ProgressBar();
             battery_bar.hexpand = true;
             battery_bar.add_css_class("battery-progress-bar");
+            // У полосы нет подписи, скринридер иначе озвучит только проценты.
+            battery_bar.update_property(Gtk.AccessibleProperty.LABEL, _("Battery charge"), -1);
             content.append(battery_bar);
 
             var stats_container = new Box(Orientation.HORIZONTAL, 12);
@@ -44,9 +46,7 @@ namespace WayShell.QS {
                 power_dev = upower.get_primary_device();
                 if (power_dev != null) {
                     update_status();
-                    power_dev.notify["percentage"].connect(update_status);
-                    power_dev.notify["state"].connect(update_status);
-                    power_dev.notify["present"].connect(update_status);
+                    power_dev.changed.connect(update_status);
                 }
             }
         }
@@ -58,20 +58,13 @@ namespace WayShell.QS {
             }
             this.visible = true;
 
-            double percent = power_dev.percentage;
-            uint state = power_dev.state;
+            battery_bar.set_fraction(power_dev.percentage / 100.0);
+            battery_percentage.set_text(power_dev.get_percent_text());
 
-            battery_bar.set_fraction(percent / 100.0);
-            battery_percentage.set_text("%.0f%%".printf(percent));
-
-            string status_text = "Discharging";
-            if (state == 2) {
-                status_text = "Charging";
-            } else if (state == 1) {
-                status_text = "Fully Charged";
-            }
-
-            battery_time.set_text(status_text);
+            // UPower умеет оценивать остаток времени; если оценки нет,
+            // показываем состояние.
+            string time_text = power_dev.get_time_text();
+            battery_time.set_text(time_text != "" ? time_text : power_dev.get_status_text());
         }
     }
 }
