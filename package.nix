@@ -15,19 +15,32 @@
 , upower
 , brightnessctl
 , util-linux
-, fetchFromGitHub
+, systemd
 }:
 
 stdenv.mkDerivation rec {
   pname = "way-shell";
-  version = "0.0.10";
+  version = "67";
 
-  src = fetchFromGitHub {
-    owner = "flaemer-idk";
-    repo = "way-shell-maybe-forkflaemer";
-    # Пин по коммиту: rev = "main" не воспроизводится, main двигается.
-    rev = "5a7827c";
-    hash = "sha256-Ifkrh+zLEgK6IbuHBkEYRPGASLEZ6DPoAr9MjP+0mPA=";
+  # src = ./. копирует в стор всё дерево целиком, включая локальный build/ —
+  # а там лежит уже сконфигурированный meson-каталог с абсолютными путями
+  # хоста. Meson видит «Directory already configured», идёт в reconfigure
+  # вместо чистого setup и падает с FileNotFoundError по путям вида
+  # /home/.../build/meson-info/tmp_dump.json. Поэтому вырезаем build/,
+  # прочие gitignored артефакты (.nix-cache, *.pot) и VCS-мусор.
+  src = lib.cleanSourceWith {
+    src = ./.;
+    filter = name: type:
+      let
+        rel = lib.removePrefix (toString ./.) (toString name);
+        isBuildTree = rel == "/build" || lib.hasPrefix "/build/" rel;
+        isNixCache = rel == "/.nix-cache" || lib.hasPrefix "/.nix-cache/" rel;
+        isGeneratedPot = lib.hasSuffix "/way-shell.pot" rel;
+      in
+      lib.sources.cleanSourceFilter name type
+      && !isBuildTree
+      && !isNixCache
+      && !isGeneratedPot;
   };
 
   nativeBuildInputs = [
@@ -37,7 +50,6 @@ stdenv.mkDerivation rec {
     vala
     wrapGAppsHook4
     glib
-    # msgfmt: компиляция po/*.po в .mo на этапе сборки.
     gettext
   ];
 
@@ -57,21 +69,12 @@ stdenv.mkDerivation rec {
     "-Db_ndebug=true"
   ];
 
-  # -march=native убран: ломает переносимость бинарника и кэш подстановок.
   env.NIX_CFLAGS_COMPILE = "-O3 -flto";
 
-  # Нет .desktop и иконки сознательно: это системная оболочка в автозапуске
-  # композитора, а не приложение для меню запуска.
-  # gschema устанавливается и компилируется самим meson (data/meson.build
-  # + gnome.post_install), поэтому ручной postInstall больше не нужен.
-
-  # bluez из PATH убран: BluetoothService говорит с BlueZ по D-Bus, спавна
-  # bluetoothctl больше нет. rfkill (из util-linux) нужен только чтобы снять
-  # софт-блок, когда сам BlueZ отвечает org.bluez.Error.Blocked.
   preFixup = ''
     gappsWrapperArgs+=(
       --prefix XDG_DATA_DIRS : "$out/share"
-      --prefix PATH : "${lib.makeBinPath [ brightnessctl util-linux ]}"
+      --prefix PATH : "${lib.makeBinPath [ brightnessctl util-linux systemd ]}"
     )
   '';
 

@@ -3,6 +3,11 @@
 /Build/
 /_build/
 /.cache/
+# Кэш nix (XDG_CACHE_HOME), когда терминал не может писать в ~/.cache
+/.nix-cache/
+# Сырлы nix-build
+/result
+/result-*
 # Было `**.*o` — этот шаблон прятал и po/ru.po с po/en.po, то есть переводы
 # не попадали в репозиторий.
 *.o
