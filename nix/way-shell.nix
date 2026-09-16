@@ -29,10 +29,12 @@ in
   options.programs.way-shell = {
     enable = lib.mkEnableOption "way-shell, a Wayland shell for Niri";
 
-    package = lib.mkPackageOption pkgs "way-shell" { } // {
-      # Пакета в самом nixpkgs нет — по умолчанию берём сборку из этого репо.
-      default = (pkgs.callPackage ../package.nix { });
+    package = lib.mkOption {
+      type = lib.types.package;
+      # Пакета в самом nixpkgs нет — по умолчанию собираем из этого репо.
+      default = pkgs.callPackage ../package.nix { };
       defaultText = lib.literalExpression "pkgs.callPackage ../package.nix {}";
+      description = "Пакет way-shell, который ставить в systemPackages.";
     };
   };
 
